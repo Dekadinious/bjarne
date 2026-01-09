@@ -164,6 +164,17 @@ $INIT_PROMPT"
         echo -e "  - $CONTEXT_FILE"
         echo -e "  - $TASK_FILE"
         [[ -d "$SPECS_DIR" ]] && echo -e "  - $SPECS_DIR/"
+
+        # Init git repo if git available and not already in a repo
+        if command -v git &> /dev/null; then
+            if ! git rev-parse --git-dir &> /dev/null 2>&1; then
+                git init -q && \
+                git add -A && \
+                git commit -q -m "Initial project setup by Bjarne" && \
+                echo -e "  - git repo initialized" || true
+            fi
+        fi
+
         echo ""
         echo -e "${CYAN}Run 'bjarne' to start development${NC}"
     else
