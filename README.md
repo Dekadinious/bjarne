@@ -15,16 +15,12 @@ Bjarne reads your idea, creates a task list, then loops through each task autono
 ## Requirements
 
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
+- **macOS or Linux** (Windows users: use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install))
 
 ## Install
 
 ```bash
-# Download
-curl -o bjarne https://raw.githubusercontent.com/Dekadinious/bjarne/main/bjarne
-
-# Make executable and move to PATH
-chmod +x bjarne
-sudo mv bjarne /usr/local/bin/
+sudo curl -o /usr/local/bin/bjarne https://raw.githubusercontent.com/Dekadinious/bjarne/main/bjarne && sudo chmod +x /usr/local/bin/bjarne
 ```
 
 ## Usage
