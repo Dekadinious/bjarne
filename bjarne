@@ -468,10 +468,23 @@ Use TEST_COMMAND from .task file (or detect from CONTEXT.md)
 - Tests let you VERIFY the implementation works - without them you're blind
 - A feature without tests is not truly complete
 
-## Classify Issues by Severity
+## Classify Issues by Type AND Severity
+
+### Issue Types:
+- 🔧 ENVIRONMENT: Missing tools, dependencies, wrong container setup, config needed
+- 💻 CODE: Bugs, logic errors, security issues, missing error handling
+
+### Severity:
 - 🔴 BLOCKER: Security vulnerabilities, data loss risk, crashes
 - 🟡 ISSUE: Bugs, logic errors, missing error handling
 - 🟢 SUGGESTION: Style improvements, minor optimizations
+
+## CRITICAL: Environment Issues Are SOLVABLE, Not Blockers
+If you encounter an environment issue (missing tool, dependency, wrong setup):
+- This is NOT a blocker - it's a SOLVABLE ISSUE
+- Examples: "Chrome not installed", "missing npm package", "Docker needs config"
+- Mark as: 🔧 ENVIRONMENT ISSUE (not BLOCKER)
+- Include REMEDIATION: what needs to be installed/configured to fix it
 
 ## Check Against Pending Tasks
 Before flagging unused code, check TASKS.md:
@@ -486,8 +499,11 @@ REVIEW_RESULT:
 BUILD_PASSED: yes/no
 TESTS_PASSED: yes/no
 
+ENVIRONMENT_ISSUES:
+- [type] [description] → REMEDIATION: [how to fix]
+
 BLOCKERS:
-- [if any]
+- [if any - CODE issues only, never environment]
 
 ISSUES:
 - [if any]
@@ -511,11 +527,26 @@ read -r -d '' FIX_PROMPT << 'FIX_EOF' || true
 Read REVIEW_RESULT in .task file. Fix issues by priority.
 
 ## Priority Order
-1. 🔴 BLOCKERS first - these must be fixed
-2. 🟡 ISSUES second - fix if straightforward
-3. 🟢 SUGGESTIONS - fix only if trivial
+1. 🔧 ENVIRONMENT_ISSUES first - CREATE REMEDIATION TASKS
+2. 🔴 BLOCKERS second - code issues that must be fixed
+3. 🟡 ISSUES third - fix if straightforward
+4. 🟢 SUGGESTIONS - fix only if trivial
 
-## Your Job
+## Handling ENVIRONMENT_ISSUES (Critical!)
+Environment issues are SOLVABLE. You must:
+1. Read the REMEDIATION from .task file
+2. ADD A NEW TASK to TASKS.md to fix the environment issue
+   - Insert it BEFORE the current task (so it runs next iteration)
+   - Format: `- [ ] Setup: [remediation action]`
+   - Examples:
+     - `- [ ] Setup: Install Chromium and dependencies in Dockerfile.dev`
+     - `- [ ] Setup: Add missing npm package X to dependencies`
+     - `- [ ] Setup: Configure Docker to support tool Y`
+3. Unmark current task back to `- [ ]` (it will retry after environment is fixed)
+4. Delete .task file
+5. DO NOT mark as blocked - the environment task will fix it
+
+## Your Job for Code Issues
 1. Fix BLOCKERS (mandatory)
 2. Fix ISSUES (should fix)
 3. Consider SUGGESTIONS (nice to have)
@@ -527,7 +558,13 @@ If all fixed + tests pass:
 - Delete .task file
 - Ensure task is marked `- [x]` in TASKS.md (with note if useful)
 
-If cannot fix (blocked):
+If environment issue found:
+- Add remediation task to TASKS.md (see above)
+- Unmark current task
+- Delete .task file
+- CONTINUE (not blocked!)
+
+If TRUE code blocker (rare - only security/data issues with no fix):
 - Unmark task in TASKS.md back to `- [ ]`
 - Add blocker note: `- [ ] Task description ⚠️ Blocked: [reason]`
 - Keep .task file for context
