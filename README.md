@@ -133,10 +133,22 @@ Bjarne reads your notes, adds tasks to `TASKS.md`, and you're back in the loop.
 
 ## What Happens Each Iteration
 
-1. **PLAN** - Picks first unchecked task, searches codebase, writes plan
+1. **PLAN** - Picks first unchecked task, extracts expected outcome, writes plan with verification steps
 2. **EXECUTE** - Implements the plan, marks task done
-3. **REVIEW** - Runs tests, checks for issues
-4. **FIX** - Fixes any problems found
+3. **REVIEW** - Verifies outcome was achieved, then checks code quality
+4. **FIX** - Fixes failed outcomes first, then other issues
+
+## Outcome-Focused Tasks
+
+Tasks use the format: `- [ ] Action → Outcome`
+
+```markdown
+- [ ] Add login button to navbar → Button with href="/login" exists in header
+- [ ] Create /api/users endpoint → GET /api/users returns 200 with JSON array
+- [ ] Add email validation → Invalid email shows error message
+```
+
+The outcome must be **machine-verifiable**. REVIEW actually checks if the outcome was achieved (grep for elements, curl endpoints, verify files exist) before moving on. A task isn't done until its outcome is confirmed.
 
 ## Why Not Just a Dumb Loop?
 

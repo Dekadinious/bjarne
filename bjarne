@@ -148,12 +148,18 @@ Unless user explicitly says "no tests", you MUST include testing:
 ```
 
 ### 2. TASKS.md
-Break the idea into atomic tasks:
+Break the idea into atomic tasks WITH VERIFIABLE OUTCOMES:
 - Setup tasks first (if node_modules/vendor/.env missing)
 - **For existing projects**: Tasks should reference existing code to modify/extend
 - Then features from the idea (in logical order)
 - Each task completable in one iteration
-- Format: `- [ ] Task description`
+- **Format: `- [ ] Action → Outcome`**
+  - Action: What to implement
+  - Outcome: How to verify it worked (must be machine-checkable)
+- Examples:
+  - `- [ ] Add login button to navbar → Button with href="/login" exists in header`
+  - `- [ ] Create /api/users endpoint → GET /api/users returns 200 with JSON array`
+  - `- [ ] Add email validation → Invalid email shows error message`
 - Number of tasks should match project scope (don't pad)
 
 ### 3. specs/ folder (only if needed)
@@ -285,13 +291,13 @@ Your job: Update CONTEXT.md if needed and ADD new tasks to TASKS.md.
 - ADD new tasks at the bottom based on the notes
 - Group related new tasks together
 - Each task should be atomic (one iteration)
-- Format: `- [ ] Task description`
+- **Format: `- [ ] Action → Outcome`** (outcome must be machine-verifiable)
 
-## Task Naming
-- Bug fix: `- [ ] Fix: [description of bug]`
-- New feature: `- [ ] Add: [feature description]`
-- Tweak/adjust: `- [ ] Adjust: [what to change]`
-- Refactor: `- [ ] Refactor: [what to improve]`
+## Task Naming (always include → Outcome)
+- Bug fix: `- [ ] Fix: [bug] → [expected behavior after fix]`
+- New feature: `- [ ] Add: [feature] → [how to verify it works]`
+- Tweak/adjust: `- [ ] Adjust: [change] → [what should be different]`
+- Refactor: `- [ ] Refactor: [target] → [verification that behavior unchanged]`
 
 ## What NOT to Do
 - Don't remove or reorder existing tasks
@@ -359,13 +365,16 @@ You are planning ONE task from TASKS.md.
 ## Your Job
 1. Read CONTEXT.md for project info and commands
 2. Read TASKS.md - find the FIRST unchecked `- [ ]` task
-3. Read specs/ folder for detailed specifications
-4. Search the codebase for existing patterns, utilities, components
-5. Write a plan to .task file
+3. **Parse the task**: Extract ACTION and OUTCOME (format: `Action → Outcome`)
+4. Read specs/ folder for detailed specifications
+5. Search the codebase for existing patterns, utilities, components
+6. Write a plan to .task file
 
 ## Write to .task file:
 ```
 TASK: [exact task text from TASKS.md]
+ACTION: [what to implement]
+EXPECTED_OUTCOME: [how to verify success - from the → part]
 
 EXISTING_CODE:
 - [file/function to reuse]
@@ -380,6 +389,10 @@ PLAN:
 FILES_TO_CREATE: [list]
 FILES_TO_MODIFY: [list]
 TEST_COMMAND: [from CONTEXT.md or detected]
+
+OUTCOME_VERIFICATION:
+- [specific check to confirm outcome, e.g., "grep for button with href=/login"]
+- [curl command, file check, or code inspection to verify]
 ```
 
 ## Architecture Principles
@@ -425,7 +438,18 @@ read -r -d '' REVIEW_PROMPT << 'REVIEW_EOF' || true
 
 Review implementation against .task plan.
 
-## Check Plan Compliance
+## 1. VERIFY OUTCOME FIRST (Most Important!)
+Read EXPECTED_OUTCOME and OUTCOME_VERIFICATION from .task file.
+Actually run the verification steps to confirm the outcome was achieved:
+- If it says "button exists with href=/login" → grep/search for it
+- If it says "API returns 200" → curl the endpoint
+- If it says "error message shows" → check the component renders it
+- If it says "file created at X" → verify file exists
+
+**If outcome NOT achieved**: This is a 🔴 BLOCKER - the task isn't done.
+**If outcome achieved**: Continue to code quality checks.
+
+## 2. Check Plan Compliance
 - Was EXISTING_CODE reused?
 - Were PATTERNS followed?
 - All PLAN steps done?
@@ -496,6 +520,8 @@ Don't suppress warnings for scaffolding. Don't keep actual dead code.
 ## Append to .task:
 ```
 REVIEW_RESULT:
+OUTCOME_ACHIEVED: yes/no
+OUTCOME_EVIDENCE: [what you checked and found]
 BUILD_PASSED: yes/no
 TESTS_PASSED: yes/no
 
@@ -503,7 +529,7 @@ ENVIRONMENT_ISSUES:
 - [type] [description] → REMEDIATION: [how to fix]
 
 BLOCKERS:
-- [if any - CODE issues only, never environment]
+- [if any - includes outcome not achieved]
 
 ISSUES:
 - [if any]
@@ -512,9 +538,11 @@ SUGGESTIONS:
 - [if any, brief]
 ```
 
-If no issues found, just write:
+If all good, write:
 ```
 REVIEW_RESULT:
+OUTCOME_ACHIEVED: yes
+OUTCOME_EVIDENCE: [brief proof]
 BUILD_PASSED: yes
 TESTS_PASSED: yes
 ISSUES: none
@@ -527,10 +555,19 @@ read -r -d '' FIX_PROMPT << 'FIX_EOF' || true
 Read REVIEW_RESULT in .task file. Fix issues by priority.
 
 ## Priority Order
-1. 🔧 ENVIRONMENT_ISSUES first - CREATE REMEDIATION TASKS
-2. 🔴 BLOCKERS second - code issues that must be fixed
-3. 🟡 ISSUES third - fix if straightforward
-4. 🟢 SUGGESTIONS - fix only if trivial
+1. ❌ OUTCOME_ACHIEVED: no - The task isn't done! Fix implementation first.
+2. 🔧 ENVIRONMENT_ISSUES - CREATE REMEDIATION TASKS
+3. 🔴 BLOCKERS - code issues that must be fixed
+4. 🟡 ISSUES - fix if straightforward
+5. 🟢 SUGGESTIONS - fix only if trivial
+
+## If OUTCOME_ACHIEVED is "no"
+The implementation doesn't do what the task required. You must:
+1. Read EXPECTED_OUTCOME and OUTCOME_EVIDENCE from .task
+2. Figure out WHY the outcome wasn't achieved
+3. Fix the implementation until the outcome IS achieved
+4. Re-verify the outcome yourself before proceeding
+This is NOT optional - a task without its outcome is not done.
 
 ## Handling ENVIRONMENT_ISSUES (Critical!)
 Environment issues are SOLVABLE. You must:
