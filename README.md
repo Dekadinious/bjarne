@@ -26,6 +26,11 @@ Bjarne reads your idea, creates a task list, then loops through each task autono
 sudo curl -o /usr/local/bin/bjarne https://raw.githubusercontent.com/Dekadinious/bjarne/main/bjarne && sudo chmod +x /usr/local/bin/bjarne
 ```
 
+Or just give Claude this repo and ask it to set things up:
+```
+Install bjarne from https://github.com/Dekadinious/bjarne
+```
+
 ## Commands
 
 | Command | What it does |
