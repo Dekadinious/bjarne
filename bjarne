@@ -26,6 +26,38 @@ CONTEXT_FILE="CONTEXT.md"
 SPECS_DIR="specs"
 TASK_STATE=".task"
 
+# Retry settings
+MAX_RETRIES=5
+RETRY_DELAY=10
+
+# Run claude with retry logic
+run_claude() {
+    local prompt="$1"
+    local attempt=1
+    local exit_code
+
+    while [[ $attempt -le $MAX_RETRIES ]]; do
+        claude -p --dangerously-skip-permissions "$prompt"
+        exit_code=$?
+
+        if [[ $exit_code -eq 0 ]]; then
+            return 0
+        fi
+
+        echo -e "${YELLOW}  Claude failed (attempt $attempt/$MAX_RETRIES, exit code $exit_code)${NC}"
+
+        if [[ $attempt -lt $MAX_RETRIES ]]; then
+            echo -e "${YELLOW}  Retrying in ${RETRY_DELAY}s...${NC}"
+            sleep $RETRY_DELAY
+        fi
+
+        ((attempt++))
+    done
+
+    echo -e "${RED}  All $MAX_RETRIES attempts failed${NC}"
+    return 1
+}
+
 #==============================================================================
 # INIT COMMAND - Bootstrap from idea file (works on new or existing projects)
 #==============================================================================
@@ -192,7 +224,7 @@ $(cat CLAUDE.md)
 "
     fi
 
-    claude -p --dangerously-skip-permissions "# IDEA FILE CONTENT:
+    run_claude "# IDEA FILE CONTENT:
 
 $IDEA_CONTENT
 
@@ -321,7 +353,7 @@ $(cat CLAUDE.md)
 "
     fi
 
-    claude -p --dangerously-skip-permissions "# USER'S NOTES:
+    run_claude "# USER'S NOTES:
 
 $NOTES_CONTENT
 
@@ -653,9 +685,12 @@ for i in $(seq 1 $MAX_ITERATIONS); do
 
     # PLAN
     echo -e "${BLUE}[1/4 PLAN]${NC} Analyzing..."
-    claude -p --dangerously-skip-permissions "$CONTEXT
+    if ! run_claude "$CONTEXT
 
-$PLAN_PROMPT"
+$PLAN_PROMPT"; then
+        echo -e "${RED}Plan phase failed after $MAX_RETRIES retries - aborting${NC}"
+        exit 1
+    fi
 
     if [[ ! -f "$TASK_STATE" ]]; then
         echo -e "${RED}Plan failed - no .task file${NC}"
@@ -664,21 +699,30 @@ $PLAN_PROMPT"
 
     # EXECUTE
     echo -e "${BLUE}[2/4 EXECUTE]${NC} Implementing..."
-    claude -p --dangerously-skip-permissions "$CONTEXT
+    if ! run_claude "$CONTEXT
 
-$EXECUTE_PROMPT"
+$EXECUTE_PROMPT"; then
+        echo -e "${RED}Execute phase failed after $MAX_RETRIES retries - aborting${NC}"
+        exit 1
+    fi
 
     # REVIEW
     echo -e "${BLUE}[3/4 REVIEW]${NC} Reviewing..."
-    claude -p --dangerously-skip-permissions "$CONTEXT
+    if ! run_claude "$CONTEXT
 
-$REVIEW_PROMPT"
+$REVIEW_PROMPT"; then
+        echo -e "${RED}Review phase failed after $MAX_RETRIES retries - aborting${NC}"
+        exit 1
+    fi
 
     # FIX
     echo -e "${BLUE}[4/4 FIX]${NC} Fixing..."
-    claude -p --dangerously-skip-permissions "$CONTEXT
+    if ! run_claude "$CONTEXT
 
-$FIX_PROMPT"
+$FIX_PROMPT"; then
+        echo -e "${RED}Fix phase failed after $MAX_RETRIES retries - aborting${NC}"
+        exit 1
+    fi
 
     sleep 2
 done
