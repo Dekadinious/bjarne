@@ -10,9 +10,12 @@ Autonomous AI development loop. Give it an idea, come back to a finished project
 idea.md → INIT → [PLAN → EXECUTE → REVIEW → FIX] × N → Done
                               ↑
                     notes.md → REFRESH (add more tasks)
+
+        "fix X" → TASK → [PLAN → EXECUTE → REVIEW → FIX] → Branch + PR
+                         (isolated state, auto-cleanup)
 ```
 
-Bjarne reads your idea, creates a task list, then loops through each task autonomously until everything is built. After testing, you can add more tasks with `refresh`.
+Bjarne reads your idea, creates a task list, then loops through each task autonomously until everything is built. After testing, you can add more tasks with `refresh`. For quick isolated fixes, use `task` mode.
 
 ## Requirements
 
@@ -40,6 +43,7 @@ Install bjarne from https://github.com/Dekadinious/bjarne
 | `bjarne` | Run the development loop |
 | `bjarne 50` | Run with 50 iterations (default: 25) |
 | `bjarne refresh notes.md` | Add tasks from feedback notes |
+| `bjarne task "description"` | Run isolated single-task fix |
 | `bjarne --rebuild` | Rebuild Docker image (safe mode) |
 
 ## Usage
@@ -175,6 +179,41 @@ bjarne  # run again to work through new tasks
 
 Bjarne reads your notes, adds tasks to `TASKS.md`, and you're back in the loop.
 
+### 5. Task Mode (isolated fixes)
+
+Need a quick fix without touching your main project state? Use task mode:
+
+```bash
+bjarne task "Fix the login button not responding"
+```
+
+**What task mode does:**
+- Creates isolated state in `.bjarne/tasks/<task-id>/`
+- Breaks your request into subtasks
+- Runs the full PLAN → EXECUTE → REVIEW → FIX loop
+- Creates a git branch and PR (if git/gh available)
+- Cleans up after itself
+
+**Options:**
+```bash
+bjarne task "description"              # Basic usage
+bjarne task -f bugfix.md               # Read description from file
+bjarne task --safe "description"       # Run in Docker sandbox
+bjarne task --branch feature/foo "..." # Custom branch name
+bjarne task --no-pr "..."              # Skip PR creation
+bjarne task -n 10 "..."                # Limit to 10 iterations
+```
+
+**When to use task mode vs regular mode:**
+| Scenario | Use |
+|----------|-----|
+| Building a new project | `bjarne init` + `bjarne` |
+| Adding features to existing project | `bjarne refresh` + `bjarne` |
+| Quick isolated fix | `bjarne task` |
+| Running multiple fixes in parallel | Multiple `bjarne task` in different terminals |
+
+Task mode is sandboxed — it never touches your `CONTEXT.md`, `TASKS.md`, or root `.task` file. You can run multiple task instances simultaneously on different parts of your codebase.
+
 ## What Happens Each Iteration
 
 1. **PLAN** - Picks first unchecked task, extracts expected outcome, writes plan with verification steps
@@ -224,7 +263,9 @@ The REVIEW step acts as a quality gate. Code doesn't just need to *work* — it 
 | `TASKS.md` | Checkbox task list (main state) |
 | `specs/` | Detailed specifications |
 | `.task` | Current task state (temporary) |
-| `.bjarne/` | Docker config (safe mode only) |
+| `.bjarne/Dockerfile` | Docker config (safe mode) |
+| `.bjarne/logs/` | Session logs and failure details |
+| `.bjarne/tasks/<id>/` | Task mode state (isolated, auto-cleaned) |
 
 ## Standing on the Shoulders of Ralph
 
