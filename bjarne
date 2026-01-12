@@ -1107,6 +1107,7 @@ $(cat CLAUDE.md)
     # DECOMPOSE PHASE - Break task into subtasks
     #--------------------------------------------------------------------------
     echo -e "${BLUE}[DECOMPOSE]${NC} Breaking down task..."
+    task_log "INFO" "[DECOMPOSE] Starting..."
 
     read -r -d '' DECOMPOSE_PROMPT << 'DECOMPOSE_EOF' || true
 # DECOMPOSE TASK
@@ -1160,6 +1161,7 @@ $DECOMPOSE_PROMPT"
 
     if ! run_claude "$DECOMPOSE_FULL_PROMPT" "DECOMPOSE"; then
         echo -e "${RED}Decompose phase failed - aborting${NC}"
+        task_log "ERROR" "[DECOMPOSE] Failed - aborting"
         if [[ "$HAS_GIT" == "1" ]] && [[ -n "$ORIGINAL_BRANCH" ]]; then
             git checkout "$ORIGINAL_BRANCH" 2>/dev/null
         fi
@@ -1169,6 +1171,7 @@ $DECOMPOSE_PROMPT"
     # Verify SUBTASKS.md was created
     if [[ ! -f "$TASK_SUBTASKS" ]]; then
         echo -e "${RED}Error: SUBTASKS.md not created${NC}"
+        task_log "ERROR" "[DECOMPOSE] No SUBTASKS.md created"
         if [[ "$HAS_GIT" == "1" ]] && [[ -n "$ORIGINAL_BRANCH" ]]; then
             git checkout "$ORIGINAL_BRANCH" 2>/dev/null
         fi
@@ -1177,6 +1180,7 @@ $DECOMPOSE_PROMPT"
 
     SUBTASK_COUNT=$(grep -c '^\s*- \[ \]' "$TASK_SUBTASKS" 2>/dev/null || echo "0")
     echo -e "${GREEN}Created $SUBTASK_COUNT subtasks${NC}"
+    task_log "INFO" "[DECOMPOSE] Created $SUBTASK_COUNT subtasks"
     echo ""
 
     #--------------------------------------------------------------------------
@@ -1222,55 +1226,77 @@ When done, mark ALL completed tasks with [x] in the subtasks file.
         # Check for remaining subtasks
         if ! grep -q '^\s*- \[ \]' "$TASK_SUBTASKS"; then
             echo -e "${GREEN}All subtasks complete!${NC}"
+            task_log "INFO" "All subtasks complete"
             break
         fi
 
         REMAINING=$(grep -c '^\s*- \[ \]' "$TASK_SUBTASKS") || REMAINING=0
         echo -e "${YELLOW}=== Task iteration $i/$TASK_MAX_ITERATIONS ($REMAINING subtasks remaining) ===${NC}"
+        task_log "INFO" "=== Iteration $i/$TASK_MAX_ITERATIONS ($REMAINING remaining) ==="
 
         # Build context for this iteration (task mode header + project context)
         ITER_CONTEXT="$TASK_MODE_HEADER$PROJECT_CONTEXT$SPECS_CONTENT$CLAUDE_MD_CONTENT"
 
         # PLAN (uses main PLAN_PROMPT with task context)
         echo -e "${BLUE}[1/4 PLAN]${NC} Analyzing subtask..."
+        task_log "INFO" "[PLAN] Starting..."
         if ! run_claude "$ITER_CONTEXT
 
 $PLAN_PROMPT" "TASK_PLAN"; then
             echo -e "${RED}Plan phase failed - aborting${NC}"
+            task_log "ERROR" "[PLAN] Failed - aborting"
             break
         fi
 
         if [[ ! -f "$TASK_STATE_FILE" ]]; then
             echo -e "${RED}Plan failed - no .task file created${NC}"
+            task_log "ERROR" "[PLAN] No .task file created"
             continue
         fi
 
+        # Log which tasks are being worked on
+        CURRENT_TASKS=$(grep -E '^TASK:|^TASKS:' "$TASK_STATE_FILE" 2>/dev/null | head -3)
+        task_log "INFO" "[PLAN] Working on: $CURRENT_TASKS"
+
         # EXECUTE (uses main EXECUTE_PROMPT with task context)
         echo -e "${BLUE}[2/4 EXECUTE]${NC} Implementing..."
+        task_log "INFO" "[EXECUTE] Starting..."
         if ! run_claude "$ITER_CONTEXT
 
 $EXECUTE_PROMPT" "TASK_EXECUTE"; then
             echo -e "${RED}Execute phase failed - aborting${NC}"
+            task_log "ERROR" "[EXECUTE] Failed - aborting"
             break
         fi
+        task_log "INFO" "[EXECUTE] Complete"
 
         # REVIEW (uses main REVIEW_PROMPT with task context)
         echo -e "${BLUE}[3/4 REVIEW]${NC} Reviewing..."
+        task_log "INFO" "[REVIEW] Starting..."
         if ! run_claude "$ITER_CONTEXT
 
 $REVIEW_PROMPT" "TASK_REVIEW"; then
             echo -e "${RED}Review phase failed - aborting${NC}"
+            task_log "ERROR" "[REVIEW] Failed - aborting"
             break
         fi
+        task_log "INFO" "[REVIEW] Complete"
 
         # FIX (uses main FIX_PROMPT with task context)
         echo -e "${BLUE}[4/4 FIX]${NC} Fixing..."
+        task_log "INFO" "[FIX] Starting..."
         if ! run_claude "$ITER_CONTEXT
 
 $FIX_PROMPT" "TASK_FIX"; then
             echo -e "${RED}Fix phase failed - aborting${NC}"
+            task_log "ERROR" "[FIX] Failed - aborting"
             break
         fi
+        task_log "INFO" "[FIX] Complete"
+
+        # Log completed count
+        COMPLETED_NOW=$(grep -c '^\s*- \[x\]' "$TASK_SUBTASKS" 2>/dev/null) || COMPLETED_NOW=0
+        task_log "INFO" "Iteration $i complete - $COMPLETED_NOW subtasks done so far"
 
         sleep 2
     done
@@ -1280,6 +1306,7 @@ $FIX_PROMPT" "TASK_FIX"; then
     #--------------------------------------------------------------------------
     echo ""
     echo -e "${CYAN}[FINALIZE]${NC} Wrapping up task..."
+    task_log "INFO" "[FINALIZE] Starting..."
 
     # Build finalize prompt
     read -r -d '' FINALIZE_PROMPT << 'FINALIZE_EOF' || true
@@ -1333,6 +1360,9 @@ $(cat "$TASK_SUBTASKS" 2>/dev/null || echo "No subtasks file found")
     # Run finalize phase
     if ! run_claude "$FINALIZE_PROMPT" "FINALIZE"; then
         echo -e "${YELLOW}Finalize phase had issues - check output above${NC}"
+        task_log "WARN" "[FINALIZE] Had issues"
+    else
+        task_log "INFO" "[FINALIZE] Complete"
     fi
 
     # Return to original branch (safety fallback in case Claude didn't)
@@ -1342,6 +1372,11 @@ $(cat "$TASK_SUBTASKS" 2>/dev/null || echo "No subtasks file found")
             git checkout "$ORIGINAL_BRANCH" 2>/dev/null
         fi
     fi
+
+    # Log final stats
+    FINAL_COMPLETED=$(grep -c '^\s*- \[x\]' "$TASK_SUBTASKS" 2>/dev/null) || FINAL_COMPLETED=0
+    FINAL_REMAINING=$(grep -c '^\s*- \[ \]' "$TASK_SUBTASKS" 2>/dev/null) || FINAL_REMAINING=0
+    task_log "INFO" "=== TASK FINISHED: $FINAL_COMPLETED completed, $FINAL_REMAINING remaining ==="
 
     # Output completion
     echo ""
