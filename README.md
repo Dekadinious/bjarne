@@ -196,8 +196,8 @@ bjarne task "Fix the login button not responding"
 
 **Options:**
 ```bash
-bjarne task "description"              # Basic usage
-bjarne task -f bugfix.md               # Read description from file
+bjarne task "description"              # Text description
+bjarne task bugfix.md                  # Auto-detects file, reads contents
 bjarne task --safe "description"       # Run in Docker sandbox
 bjarne task --branch feature/foo "..." # Custom branch name
 bjarne task --no-pr "..."              # Skip PR creation

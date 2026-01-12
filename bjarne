@@ -501,11 +501,13 @@ detect_gh() {
     fi
 }
 
-# Generate task ID from description
+# Generate task ID from description (uses first line only for slug)
 generate_task_id() {
     local description="$1"
     local timestamp=$(date +%s)
-    local slug=$(echo "$description" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-30)
+    # Use only first non-empty line for slug (handles multi-line markdown)
+    local first_line=$(echo "$description" | grep -v '^#' | grep -v '^$' | head -1)
+    local slug=$(echo "$first_line" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | cut -c1-30)
     echo "${timestamp}-${slug}"
 }
 
@@ -1001,28 +1003,31 @@ if [[ "$1" == "task" ]]; then
                 shift 2
                 ;;
             *)
-                # Assume it's the task description
+                # Assume it's the task description (or file path)
                 TASK_DESCRIPTION="$1"
                 shift
                 ;;
         esac
     done
 
-    # Get description from file if -f was used
+    # Auto-detect: if -f was used OR if description is an existing file, read it
     if [[ -n "$TASK_FILE_INPUT" ]]; then
         if [[ ! -f "$TASK_FILE_INPUT" ]]; then
             echo -e "${RED}Error: Task file '$TASK_FILE_INPUT' not found${NC}"
             exit 1
         fi
         TASK_DESCRIPTION=$(cat "$TASK_FILE_INPUT")
+    elif [[ -n "$TASK_DESCRIPTION" ]] && [[ -f "$TASK_DESCRIPTION" ]]; then
+        # Description is actually a file path - read it
+        TASK_DESCRIPTION=$(cat "$TASK_DESCRIPTION")
     fi
 
     if [[ -z "$TASK_DESCRIPTION" ]]; then
-        echo -e "${RED}Usage: bjarne task [--safe] [-f file.md] [--branch name] [--no-pr] [-n iterations] \"task description\"${NC}"
+        echo -e "${RED}Usage: bjarne task [--safe] [--branch name] [--no-pr] [-n iterations] <description or file.md>${NC}"
         echo ""
         echo "Examples:"
         echo "  bjarne task \"Fix the login button not responding\""
-        echo "  bjarne task -f bugfix.md"
+        echo "  bjarne task bugfix.md                    # auto-detects file"
         echo "  bjarne task --safe \"Add payment integration\""
         echo "  bjarne task --branch feature/oauth \"Add OAuth support\""
         exit 1
