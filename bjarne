@@ -1309,9 +1309,9 @@ if [[ "$1" == "task" ]]; then
     HAS_GIT=$(detect_git)
     HAS_GH=$(detect_gh)
 
-    # Generate task ID and paths
+    # Generate task ID and paths (use absolute paths to survive worktree cd)
     TASK_ID=$(generate_task_id "$TASK_DESCRIPTION")
-    TASK_DIR=".bjarne/tasks/$TASK_ID"
+    TASK_DIR="$BJARNE_PROJECT_ROOT/.bjarne/tasks/$TASK_ID"
     TASK_LOG_DIR="$TASK_DIR/logs"
     TASK_LOG_FILE="$TASK_LOG_DIR/task.log"
     TASK_SUBTASKS="$TASK_DIR/SUBTASKS.md"
