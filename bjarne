@@ -48,8 +48,9 @@ TASK_STATE=".task"
 MAX_RETRIES=5
 RETRY_DELAY=10
 
-# Logging
-LOG_DIR=".bjarne/logs"
+# Logging (use absolute path to survive worktree cd)
+BJARNE_PROJECT_ROOT="$(pwd)"
+LOG_DIR="$BJARNE_PROJECT_ROOT/.bjarne/logs"
 LOG_FILE="$LOG_DIR/bjarne.log"
 
 # Auto-update settings
