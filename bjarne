@@ -313,6 +313,10 @@ read -r -d '' EXECUTE_PROMPT << 'EXEC_EOF' || true
 
 Read .task file. Follow the plan exactly.
 
+**Your primary job is IMPLEMENTATION - use Write and Edit tools to create/modify files.**
+The PLAN phase already researched the codebase. Trust the plan's EXISTING_CODE and PATTERNS.
+You may read files when needed for implementation, but prioritize writing code over exploration.
+
 ## Rules
 - Follow the PLAN steps in order
 - REUSE code listed in EXISTING_CODE
