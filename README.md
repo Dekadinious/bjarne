@@ -195,8 +195,10 @@ A web app for freelancers to create and manage invoices.
 | `bjarne init --safe idea.md` | Same, but enables Docker sandbox |
 | `bjarne` | Run the development loop |
 | `bjarne 50` | Run with 50 iterations (default: 25) |
-| `bjarne --batch` | Batch up to 5 related tasks per iteration |
-| `bjarne -b 3 50` | Batch up to 3 tasks, max 50 iterations |
+| `bjarne --batch` | Enable batch mode (up to 5 related tasks) |
+| `bjarne --batch 50` | Batch mode, 50 iterations |
+| `bjarne --batch=3` | Batch mode, custom size (up to 3 tasks) |
+| `bjarne --batch=3 50` | Batch up to 3 tasks, 50 iterations |
 | `bjarne refresh notes.md` | Add tasks from feedback notes |
 | `bjarne task "description"` | Run isolated single-task fix |
 | `bjarne --rebuild` | Rebuild Docker image (safe mode) |
@@ -225,9 +227,11 @@ bjarne 50       # Custom: max 50 iterations
 By default, Bjarne processes one task per PLAN → EXECUTE → REVIEW → FIX cycle. Batch mode groups related tasks together:
 
 ```bash
-bjarne --batch        # Up to 5 related tasks per iteration
-bjarne -b 3           # Up to 3 related tasks
-bjarne -b 2 50        # Up to 2 tasks, 50 iterations max
+bjarne --batch        # Batch mode, up to 5 related tasks
+bjarne --batch 50     # Batch mode, 50 iterations
+bjarne --batch=3      # Batch mode, up to 3 related tasks
+bjarne --batch=3 50   # Up to 3 tasks, 50 iterations
+bjarne -b3 50         # Short form: up to 3 tasks, 50 iterations
 ```
 
 **How it works:** Instead of picking just the first unchecked task, Bjarne scans all pending tasks and groups ones that naturally belong together — same file, same feature, logical dependencies. It might batch 1 task (if standalone) or up to N tasks (if tightly coupled).

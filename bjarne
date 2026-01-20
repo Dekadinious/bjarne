@@ -11,7 +11,8 @@
 #   bjarne --enable-auto-update     - Re-enable automatic update checks
 #
 # Main loop options:
-#   -b, --batch [n]     - Batch up to n related tasks per iteration (default 5)
+#   --batch             - Enable batch mode (up to 5 related tasks per iteration)
+#   --batch=N, -bN      - Enable batch mode with custom size (up to N tasks)
 #                         Tasks are grouped by natural relatedness, not forced
 #
 # Task mode options:
@@ -1845,13 +1846,32 @@ BATCH_SIZE=5
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -b|--batch)
+        --batch=*)
+            # --batch=N syntax: batch mode with custom size
             BATCH_MODE=true
-            # Check if next arg is a number (optional batch size)
-            if [[ -n "$2" ]] && [[ "$2" =~ ^[0-9]+$ ]]; then
-                BATCH_SIZE="$2"
-                shift
-            fi
+            BATCH_SIZE="${1#--batch=}"
+            shift
+            ;;
+        --batch)
+            # --batch alone: batch mode with default size
+            BATCH_MODE=true
+            shift
+            ;;
+        -b=*)
+            # -b=N syntax: batch mode with custom size
+            BATCH_MODE=true
+            BATCH_SIZE="${1#-b=}"
+            shift
+            ;;
+        -b[0-9]*)
+            # -bN syntax (no space): batch mode with custom size
+            BATCH_MODE=true
+            BATCH_SIZE="${1#-b}"
+            shift
+            ;;
+        -b)
+            # -b alone: batch mode with default size
+            BATCH_MODE=true
             shift
             ;;
         [0-9]*)
@@ -1862,7 +1882,9 @@ while [[ $# -gt 0 ]]; do
             echo -e "${RED}Unknown option: $1${NC}"
             echo "Usage: bjarne [options] [iterations]"
             echo "Options:"
-            echo "  -b, --batch [n]  Batch up to n related tasks (default 5)"
+            echo "  --batch       Enable batch mode (up to 5 related tasks)"
+            echo "  --batch=N     Enable batch mode with custom size"
+            echo "  -b, -bN       Short form of --batch, --batch=N"
             exit 1
             ;;
     esac
