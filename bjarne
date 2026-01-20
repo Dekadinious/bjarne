@@ -5,10 +5,14 @@
 #   bjarne init [--safe] <idea.md>  - Bootstrap project from idea file
 #   bjarne refresh <notes.md>       - Add tasks from freeform notes
 #   bjarne task [opts] "desc"       - Run isolated single-task mode
-#   bjarne [n]                      - Run n iterations (default 25)
+#   bjarne [opts] [n]               - Run n iterations (default 25)
 #   bjarne --rebuild                - Force rebuild Docker image (safe mode only)
 #   bjarne --disable-auto-update    - Disable automatic update checks
 #   bjarne --enable-auto-update     - Re-enable automatic update checks
+#
+# Main loop options:
+#   -b, --batch [n]     - Batch up to n related tasks per iteration (default 5)
+#                         Tasks are grouped by natural relatedness, not forced
 #
 # Task mode options:
 #   --safe              - Run in Docker container
@@ -1834,7 +1838,35 @@ fi
 # MAIN LOOP - PLAN → EXECUTE → REVIEW → FIX
 #==============================================================================
 
-MAX_ITERATIONS=${1:-25}
+# Parse main loop arguments
+MAX_ITERATIONS=25
+BATCH_MODE=false
+BATCH_SIZE=5
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -b|--batch)
+            BATCH_MODE=true
+            # Check if next arg is a number (optional batch size)
+            if [[ -n "$2" ]] && [[ "$2" =~ ^[0-9]+$ ]]; then
+                BATCH_SIZE="$2"
+                shift
+            fi
+            shift
+            ;;
+        [0-9]*)
+            MAX_ITERATIONS="$1"
+            shift
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Usage: bjarne [options] [iterations]"
+            echo "Options:"
+            echo "  -b, --batch [n]  Batch up to n related tasks (default 5)"
+            exit 1
+            ;;
+    esac
+done
 
 # Check required files
 if [[ ! -f "$TASK_FILE" ]]; then
@@ -1857,6 +1889,333 @@ MAIN_MODE_HEADER="## DEVELOPMENT MODE - Testing Requirements
 - A feature without tests is not truly complete
 
 "
+
+# Batch mode prompts (override base prompts when batching)
+get_batch_plan_prompt() {
+    local batch_size="$1"
+    cat << BATCH_PLAN_EOF
+# PLAN STEP (Batch Mode)
+
+**IMPORTANT: This is step 1 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
+- There is NO human in the loop - your output feeds into the next step
+- Do NOT ask questions or request clarification - work with what you have
+- Be direct and factual - no conversational language needed
+
+You are planning UP TO $batch_size RELATED tasks from TASKS.md.
+
+## Your Job
+1. Read CONTEXT.md for project info and commands
+2. Read TASKS.md - scan ALL unchecked \`- [ ]\` tasks
+3. **Identify naturally related tasks** - look for:
+   - Tasks that touch the same file(s)
+   - Tasks that are part of the same feature/component
+   - Tasks that have logical dependencies (do A before B)
+   - Tasks that share the same patterns/utilities
+4. **Select UP TO $batch_size tasks** that make sense to do together
+   - Could be 1 task if it's standalone
+   - Could be 2-5 if they're tightly related
+   - Don't force grouping - only batch what naturally belongs together
+5. Read specs/ folder for detailed specifications
+6. Search the codebase for existing patterns, utilities, components
+7. Write a plan to .task file
+
+## STOP: Verify Tasks Are Actually Unchecked
+Before planning, CONFIRM each task line starts with \`- [ ]\` (space between brackets).
+Skip any task marked \`- [x]\` (already complete).
+
+## Write to .task file:
+\`\`\`
+TASKS:
+- [exact task 1 text from TASKS.md]
+- [exact task 2 text, if batching]
+- [etc.]
+
+EXPECTED_OUTCOMES:
+- Task 1: [how to verify success - from the → part]
+- Task 2: [verification for task 2]
+
+EXISTING_CODE:
+- [file/function to reuse]
+
+PATTERNS:
+- [pattern from codebase to follow]
+
+PLAN:
+1. [specific step - note which task(s) it addresses]
+2. [specific step]
+
+FILES_TO_CREATE: [list]
+FILES_TO_MODIFY: [list]
+TEST_COMMAND: [from CONTEXT.md or detected]
+
+OUTCOME_VERIFICATION:
+- Task 1: [specific check, e.g., "grep for button with href=/login"]
+- Task 2: [verification for task 2]
+\`\`\`
+
+## Grouping Guidelines
+- **DO batch**: All CRUD operations for one model, all UI components for one page, related API endpoints
+- **DON'T batch**: Unrelated features, tasks in different areas of codebase, tasks with no shared context
+- **When in doubt**: Smaller batches are fine. Quality over quantity.
+
+## Architecture Principles
+- REUSE existing code - search first
+- EXTEND existing files when logical
+- ONE clear responsibility per file
+- Follow existing patterns in codebase
+- Match existing code style
+
+DO NOT implement. Just plan.
+BATCH_PLAN_EOF
+}
+
+get_batch_execute_prompt() {
+    cat << 'BATCH_EXEC_EOF'
+# EXECUTE STEP (Batch Mode)
+
+**IMPORTANT: This is step 2 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
+- There is NO human in the loop - just implement the plan
+- Do NOT ask questions or request approval - execute the plan
+- Be direct and factual - no conversational language needed
+
+Read .task file. Follow the plan exactly - implement ALL listed tasks.
+
+**Your primary job is IMPLEMENTATION - use Write and Edit tools to create/modify files.**
+The PLAN phase already researched the codebase. Trust the plan's EXISTING_CODE and PATTERNS.
+You may read files when needed for implementation, but prioritize writing code over exploration.
+
+## Rules
+- Follow the PLAN steps in order
+- Implement ALL tasks listed in the TASKS section
+- REUSE code listed in EXISTING_CODE
+- Follow PATTERNS for consistency
+- Match existing code style in the project
+- Clear names, no abbreviations
+- Handle errors meaningfully
+
+## Code Quality (adapt to project's tech stack)
+- Keep functions focused (single responsibility)
+- Keep files cohesive (related code together)
+- Comments explain WHY not WHAT
+
+## When Done
+Mark ALL completed tasks in TASKS.md with a short note if you learned something useful:
+- Simple completion: `- [x] Task description`
+- With note: `- [x] Task description → Note: [one-line insight]`
+
+Only add a note if it would help future tasks (e.g., "used X instead of Y", "requires Z first").
+
+Then commit: "feat: [brief summary of all tasks]"
+BATCH_EXEC_EOF
+}
+
+get_batch_review_prompt() {
+    cat << 'BATCH_REVIEW_EOF'
+# REVIEW STEP (Batch Mode)
+
+**IMPORTANT: This is step 3 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
+- There is NO human in the loop - your output feeds directly into the FIX step
+- Do NOT ask questions like "Would you like me to fix this?"
+- Do NOT offer to make changes - just document findings
+- The FIX step will automatically process everything you report
+- Be direct and factual - no conversational language needed
+
+Review implementation against .task plan - verify ALL batched tasks.
+
+## 1. VERIFY ALL OUTCOMES (Most Important!)
+Read EXPECTED_OUTCOMES and OUTCOME_VERIFICATION from .task file.
+For EACH task listed, actually run the verification steps:
+- If it says "button exists with href=/login" → grep/search for it
+- If it says "API returns 200" → curl the endpoint
+- If it says "error message shows" → check the component renders it
+- If it says "file created at X" → verify file exists
+
+**Track each task's outcome separately:**
+- Task 1: ✅ achieved / ❌ not achieved
+- Task 2: ✅ achieved / ❌ not achieved
+- etc.
+
+**If ANY outcome NOT achieved**: This is a 🔴 BLOCKER - that task isn't done.
+
+## 2. Check Plan Compliance
+- Were ALL tasks in the batch addressed?
+- Was EXISTING_CODE reused?
+- Were PATTERNS followed?
+- All PLAN steps done?
+
+## Auto-Detect Focus Areas
+Based on what was implemented, check relevant areas:
+
+**If touched auth/passwords/tokens/API keys:**
+- Input validation and sanitization
+- No hardcoded secrets
+- Secure token handling
+
+**If touched database/SQL:**
+- Prepared statements (no SQL injection)
+- Proper error handling
+
+**If touched user input/forms:**
+- Input validation
+- XSS prevention (escape output)
+
+**If touched API endpoints:**
+- Proper response format
+- Error responses
+- Authentication checks
+
+**If touched async/state:**
+- Race condition checks
+- Error state handling
+
+**If touched UI:**
+- Matches design system (if specs/DESIGN_SYSTEM.md exists)
+- Accessibility basics
+
+## Run Checks
+Use TEST_COMMAND from .task file (or detect from CONTEXT.md)
+
+## Classify Issues by Type AND Severity
+
+### Issue Types:
+- 🔧 ENVIRONMENT: Missing tools, dependencies, wrong container setup, config needed
+- 💻 CODE: Bugs, logic errors, security issues, missing error handling
+
+### Severity:
+- 🔴 BLOCKER: Security vulnerabilities, data loss risk, crashes, outcome not achieved
+- 🟡 ISSUE: Bugs, logic errors, missing error handling
+- 🟢 SUGGESTION: Style improvements, minor optimizations
+
+## Append to .task:
+```
+REVIEW_RESULT:
+OUTCOMES_ACHIEVED:
+- Task 1: yes/no - [evidence]
+- Task 2: yes/no - [evidence]
+BUILD_PASSED: yes/no
+TESTS_PASSED: yes/no
+
+ENVIRONMENT_ISSUES:
+- [type] [description] → REMEDIATION: [how to fix]
+
+BLOCKERS:
+- [if any - includes outcomes not achieved]
+
+ISSUES:
+- [if any]
+
+SUGGESTIONS:
+- [if any, brief]
+```
+
+If all good, write:
+```
+REVIEW_RESULT:
+OUTCOMES_ACHIEVED:
+- Task 1: yes - [brief proof]
+- Task 2: yes - [brief proof]
+BUILD_PASSED: yes
+TESTS_PASSED: yes
+ISSUES: none
+```
+BATCH_REVIEW_EOF
+}
+
+get_batch_fix_prompt() {
+    cat << 'BATCH_FIX_EOF'
+# FIX STEP (Batch Mode)
+
+**IMPORTANT: This is step 4 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
+- There is NO human in the loop - fix issues found by REVIEW automatically
+- Do NOT ask questions or request approval - just fix the issues
+- Be direct and factual - no conversational language needed
+
+Read REVIEW_RESULT in .task file. Fix issues by priority.
+
+## NOTHING TO FIX? STOP HERE.
+If REVIEW shows:
+- ALL OUTCOMES_ACHIEVED: yes
+- No ENVIRONMENT_ISSUES (empty or "none")
+- No BLOCKERS (empty or "none")
+- No ISSUES (empty or "none")
+
+Then there is NOTHING for you to do. Simply:
+1. Delete the .task file
+2. Ensure ALL batched tasks are marked `- [x]` in TASKS.md
+3. STOP IMMEDIATELY - do NOT implement new code, do NOT start new tasks
+
+The FIX step ONLY fixes problems found by REVIEW. It does NOT:
+- Implement new features
+- Start the next task
+- Add improvements not flagged by REVIEW
+- Do anything beyond fixing flagged issues
+
+If there are no issues, your entire job is: delete .task, mark all complete, done.
+
+## Priority Order (only if issues exist)
+1. ❌ OUTCOMES not achieved - The task(s) aren't done! Fix implementation first.
+2. 🔧 ENVIRONMENT_ISSUES - CREATE REMEDIATION TASKS
+3. 🔴 BLOCKERS - code issues that must be fixed
+4. 🟡 ISSUES - fix if straightforward
+5. 🟢 SUGGESTIONS - fix only if trivial
+
+## If ANY OUTCOME not achieved
+The implementation doesn't do what the task required. You must:
+1. Read EXPECTED_OUTCOMES and OUTCOMES_ACHIEVED from .task
+2. Figure out WHY each failed outcome wasn't achieved
+3. Fix the implementation until ALL outcomes ARE achieved
+4. Re-verify the outcomes yourself before proceeding
+This is NOT optional - a task without its outcome is not done.
+
+## Handling ENVIRONMENT_ISSUES (Critical!)
+Environment issues are SOLVABLE. You must:
+1. Read the REMEDIATION from .task file
+2. ADD A NEW TASK to TASKS.md to fix the environment issue
+   - Insert it BEFORE the current tasks (so it runs next iteration)
+   - Format: `- [ ] Setup: [remediation action]`
+3. Unmark current tasks back to `- [ ]` (they will retry after environment is fixed)
+4. Delete .task file
+5. DO NOT mark as blocked - the environment task will fix it
+
+## Your Job for Code Issues
+1. Fix BLOCKERS (mandatory)
+2. Fix ISSUES (should fix)
+3. Consider SUGGESTIONS (nice to have)
+4. Re-run TEST_COMMAND to confirm
+5. Commit fixes: "fix: [description]"
+
+## NEVER Cheat on Tests
+When a test fails, you MUST fix the IMPLEMENTATION, not the test.
+
+**Forbidden "fixes" that are actually cheating:**
+- Mocking a return value to make the test pass
+- Weakening assertions (changing `toBe(5)` to `toBeTruthy()`)
+- Removing test cases that fail
+- Adding `.skip` or commenting out failing tests
+- Stubbing the function being tested to return expected values
+
+**The ONLY time you may change a test:**
+- The test itself has a bug (wrong expected value, typo)
+- Upstream changes made the test's assumptions invalid (API changed, schema changed)
+- AND you verify the test still tests meaningful behavior after your change
+
+## After Fixing
+If all fixed + tests pass:
+- Delete .task file
+- Ensure ALL batched tasks are marked `- [x]` in TASKS.md (with note if useful)
+
+If environment issue found:
+- Add remediation task to TASKS.md (see above)
+- Unmark current tasks
+- Delete .task file
+- CONTINUE (not blocked!)
+
+If TRUE code blocker (rare - only security/data issues with no fix):
+- Unmark tasks in TASKS.md back to `- [ ]`
+- Add blocker note: `- [ ] Task description ⚠️ Blocked: [reason]`
+- Keep .task file for context
+BATCH_FIX_EOF
+}
 
 # Load context fresh each iteration
 load_context() {
@@ -1883,10 +2242,13 @@ fi
 
 # Log session start
 log "INFO" "=== Bjarne session started ==="
-log "INFO" "Max iterations: $MAX_ITERATIONS, Safe mode: $SAFE_MODE"
+log "INFO" "Max iterations: $MAX_ITERATIONS, Safe mode: $SAFE_MODE, Batch mode: $BATCH_MODE (size: $BATCH_SIZE)"
 log "INFO" "Working directory: $(pwd)"
 
 echo -e "${CYAN}Bjarne starting - max $MAX_ITERATIONS iterations${NC}"
+if [[ "$BATCH_MODE" == true ]]; then
+    echo -e "${CYAN}Batch mode: up to $BATCH_SIZE related tasks per iteration${NC}"
+fi
 echo -e "${CYAN}Loop: PLAN → EXECUTE → REVIEW → FIX${NC}"
 echo -e "${CYAN}Logs: $LOG_FILE${NC}"
 echo ""
@@ -1905,11 +2267,24 @@ for i in $(seq 1 $MAX_ITERATIONS); do
     REMAINING=$(grep -c '^\s*- \[ \]' "$TASK_FILE" || echo "0")
     echo -e "${YELLOW}=== Iteration $i/$MAX_ITERATIONS ($REMAINING tasks remaining) ===${NC}"
 
+    # Select prompts based on batch mode
+    if [[ "$BATCH_MODE" == true ]]; then
+        ACTIVE_PLAN_PROMPT=$(get_batch_plan_prompt "$BATCH_SIZE")
+        ACTIVE_EXECUTE_PROMPT=$(get_batch_execute_prompt)
+        ACTIVE_REVIEW_PROMPT=$(get_batch_review_prompt)
+        ACTIVE_FIX_PROMPT=$(get_batch_fix_prompt)
+    else
+        ACTIVE_PLAN_PROMPT="$PLAN_PROMPT"
+        ACTIVE_EXECUTE_PROMPT="$EXECUTE_PROMPT"
+        ACTIVE_REVIEW_PROMPT="$REVIEW_PROMPT"
+        ACTIVE_FIX_PROMPT="$FIX_PROMPT"
+    fi
+
     # PLAN
     echo -e "${BLUE}[1/4 PLAN]${NC} Analyzing..."
     if ! run_claude "$CONTEXT
 
-$PLAN_PROMPT" "PLAN"; then
+$ACTIVE_PLAN_PROMPT" "PLAN"; then
         echo -e "${RED}Plan phase failed after $MAX_RETRIES retries - aborting${NC}"
         exit 1
     fi
@@ -1923,7 +2298,7 @@ $PLAN_PROMPT" "PLAN"; then
     echo -e "${BLUE}[2/4 EXECUTE]${NC} Implementing..."
     if ! run_claude "$CONTEXT
 
-$EXECUTE_PROMPT" "EXECUTE"; then
+$ACTIVE_EXECUTE_PROMPT" "EXECUTE"; then
         echo -e "${RED}Execute phase failed after $MAX_RETRIES retries - aborting${NC}"
         exit 1
     fi
@@ -1932,7 +2307,7 @@ $EXECUTE_PROMPT" "EXECUTE"; then
     echo -e "${BLUE}[3/4 REVIEW]${NC} Reviewing..."
     if ! run_claude "$CONTEXT
 
-$REVIEW_PROMPT" "REVIEW"; then
+$ACTIVE_REVIEW_PROMPT" "REVIEW"; then
         echo -e "${RED}Review phase failed after $MAX_RETRIES retries - aborting${NC}"
         exit 1
     fi
@@ -1941,7 +2316,7 @@ $REVIEW_PROMPT" "REVIEW"; then
     echo -e "${BLUE}[4/4 FIX]${NC} Fixing..."
     if ! run_claude "$CONTEXT
 
-$FIX_PROMPT" "FIX"; then
+$ACTIVE_FIX_PROMPT" "FIX"; then
         echo -e "${RED}Fix phase failed after $MAX_RETRIES retries - aborting${NC}"
         exit 1
     fi

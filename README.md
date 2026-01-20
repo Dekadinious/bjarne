@@ -63,9 +63,9 @@ idea.md → INIT → [PLAN → EXECUTE → REVIEW → FIX] × N → Done
 ```
 
 Each iteration:
-1. **PLAN** - Picks first unchecked task, extracts expected outcome, writes plan with verification steps
-2. **EXECUTE** - Implements the plan, marks task done
-3. **REVIEW** - Verifies outcome was achieved, then checks code quality
+1. **PLAN** - Picks first unchecked task (or batch of related tasks with `-b`), extracts expected outcomes, writes plan with verification steps
+2. **EXECUTE** - Implements the plan, marks task(s) done
+3. **REVIEW** - Verifies outcome(s) achieved, then checks code quality
 4. **FIX** - Fixes failed outcomes first, then other issues
 
 ## Files Bjarne Creates
@@ -195,6 +195,8 @@ A web app for freelancers to create and manage invoices.
 | `bjarne init --safe idea.md` | Same, but enables Docker sandbox |
 | `bjarne` | Run the development loop |
 | `bjarne 50` | Run with 50 iterations (default: 25) |
+| `bjarne --batch` | Batch up to 5 related tasks per iteration |
+| `bjarne -b 3 50` | Batch up to 3 tasks, max 50 iterations |
 | `bjarne refresh notes.md` | Add tasks from feedback notes |
 | `bjarne task "description"` | Run isolated single-task fix |
 | `bjarne --rebuild` | Rebuild Docker image (safe mode) |
@@ -217,6 +219,37 @@ Creates `CONTEXT.md`, `TASKS.md`, and optionally `specs/`.
 bjarne          # Default: max 25 iterations
 bjarne 50       # Custom: max 50 iterations
 ```
+
+### Batch Mode
+
+By default, Bjarne processes one task per PLAN → EXECUTE → REVIEW → FIX cycle. Batch mode groups related tasks together:
+
+```bash
+bjarne --batch        # Up to 5 related tasks per iteration
+bjarne -b 3           # Up to 3 related tasks
+bjarne -b 2 50        # Up to 2 tasks, 50 iterations max
+```
+
+**How it works:** Instead of picking just the first unchecked task, Bjarne scans all pending tasks and groups ones that naturally belong together — same file, same feature, logical dependencies. It might batch 1 task (if standalone) or up to N tasks (if tightly coupled).
+
+**Trade-offs:**
+
+| | Single Task (default) | Batch Mode |
+|---|---|---|
+| Context usage | Higher (full cycle per task) | Lower (one cycle for multiple tasks) |
+| Speed | Slower | Faster |
+| Precision | Higher (focused attention) | Possibly lower (split attention) |
+| Best for | Complex tasks, precision work | Related tasks, faster iteration |
+
+**When to use batch mode:**
+- Many small, related tasks (e.g., "add field X", "add field Y", "add field Z")
+- Tasks grouped by phase in TASKS.md
+- You want faster iteration and accept slight precision trade-off
+
+**When to stick with single-task:**
+- Complex architectural tasks
+- Tasks requiring careful, focused implementation
+- When precision matters more than speed
 
 ### Refresh
 
