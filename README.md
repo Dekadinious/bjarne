@@ -26,20 +26,36 @@ That's it. Bjarne will loop through tasks until your project is built.
 
 Bjarne isn't a dumb "keep running until done" loop. It uses **verifiable outcomes**.
 
-Every task in `TASKS.md` follows this format:
+Every task in `TASKS.md` is a multi-line block:
 
 ```markdown
-- [ ] Action → Outcome
+- [ ] Action summary (imperative verb)
+  Optional context: guidance, references, constraints.
+  > Verification point 1 (machine-checkable)
+  > Verification point 2 (if needed)
 ```
 
-For example:
+The checkbox line stays short and scannable. Description lines provide context for implementation. Verification lines (`> ` prefix) define machine-checkable outcomes. Simple tasks can still be one-liners.
+
+**Examples at different complexity levels:**
+
 ```markdown
-- [ ] Add login button to navbar → Button with href="/login" exists in header
-- [ ] Create /api/users endpoint → GET /api/users returns 200 with JSON array
-- [ ] Add email validation → Invalid email shows error message
+- [ ] Install dependencies and verify dev server starts
+  > node_modules/ directory exists
+  > npm run dev starts without errors
+
+- [ ] Add login button to navbar
+  > Button with href="/login" exists in header component
+
+- [ ] Create /api/users endpoint
+  Follow existing /api/posts pattern.
+  Use auth middleware from src/middleware/auth.ts.
+  > GET /api/users returns 200 with JSON array
+  > Response includes id, name, email fields
+  > Unauthenticated requests return 401
 ```
 
-The outcome must be **machine-verifiable**. Bjarne's REVIEW phase actually checks if the outcome was achieved (grep for elements, curl endpoints, verify files exist) before moving on. A task isn't done until its outcome is confirmed.
+Outcomes must be **machine-verifiable**. Bjarne's REVIEW phase actually checks if each outcome was achieved (grep for elements, curl endpoints, verify files exist) before moving on. A task isn't done until all its outcomes are confirmed.
 
 This is what separates Bjarne from naive loops:
 
@@ -105,7 +121,7 @@ Claude will ask about tech preferences, features, constraints, and produce a wel
 You don't have to use `bjarne init`. You can have Claude create the files manually:
 
 ```bash
-claude "Look at this codebase and create a CONTEXT.md and TASKS.md for adding [feature]. Use the outcome-focused format: '- [ ] Action → Verifiable outcome'"
+claude "Look at this codebase and create a CONTEXT.md and TASKS.md for adding [feature]. Use the multi-line task format with '> Verification point' lines."
 ```
 
 This is useful when:

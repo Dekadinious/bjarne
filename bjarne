@@ -246,38 +246,46 @@ SAFE_MODE=false
 IMAGE_NAME=""
 
 #==============================================================================
-# PROMPTS - Defined early so both task mode and main loop can use them
+# PROMPTS - Shared fragments and composable prompt functions
 #==============================================================================
 
-read -r -d '' PLAN_PROMPT << 'PLAN_EOF' || true
-# PLAN STEP
+# --- Shared Prompt Fragments (quoted heredocs - all content literal) ---
+
+read -r -d '' STEP_HEADER_PLAN << 'SHARED_EOF' || true
 
 **IMPORTANT: This is step 1 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
 - There is NO human in the loop - your output feeds into the next step
 - Do NOT ask questions or request clarification - work with what you have
 - Be direct and factual - no conversational language needed
+SHARED_EOF
 
-You are planning ONE task from TASKS.md.
+read -r -d '' STEP_HEADER_EXECUTE << 'SHARED_EOF' || true
 
-## Your Job
-1. Read CONTEXT.md for project info and commands
-2. Read TASKS.md - find the FIRST unchecked `- [ ]` task
-   - **CRITICAL**: Only plan tasks marked `- [ ]` (unchecked)
-   - Skip any task marked `- [x]` (already complete)
-3. **Parse the task**: Extract ACTION and OUTCOME (format: `Action → Outcome`)
-4. Read specs/ folder for detailed specifications
-5. Search the codebase for existing patterns, utilities, components
-6. Write a plan to .task file
+**IMPORTANT: This is step 2 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
+- There is NO human in the loop - just implement the plan
+- Do NOT ask questions or request approval - execute the plan
+- Be direct and factual - no conversational language needed
+SHARED_EOF
 
-## STOP: Verify Task Is Actually Unchecked
-Before planning, CONFIRM the task line starts with `- [ ]` (space between brackets).
-If it starts with `- [x]`, it's ALREADY DONE - do not plan it, do not create .task file.
+read -r -d '' STEP_HEADER_REVIEW << 'SHARED_EOF' || true
 
-## Write to .task file:
-```
-TASK: [exact task text from TASKS.md]
-ACTION: [what to implement]
-EXPECTED_OUTCOME: [how to verify success - from the → part]
+**IMPORTANT: This is step 3 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
+- There is NO human in the loop - your output feeds directly into the FIX step
+- Do NOT ask questions like "Would you like me to fix this?"
+- Do NOT offer to make changes - just document findings
+- The FIX step will automatically process everything you report
+- Be direct and factual - no conversational language needed
+SHARED_EOF
+
+read -r -d '' STEP_HEADER_FIX << 'SHARED_EOF' || true
+
+**IMPORTANT: This is step 4 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
+- There is NO human in the loop - fix issues found by REVIEW automatically
+- Do NOT ask questions or request approval - just fix the issues
+- Be direct and factual - no conversational language needed
+SHARED_EOF
+
+read -r -d '' SHARED_TASK_FILE_BODY << 'SHARED_EOF' || true
 
 EXISTING_CODE:
 - [file/function to reuse]
@@ -292,11 +300,9 @@ PLAN:
 FILES_TO_CREATE: [list]
 FILES_TO_MODIFY: [list]
 TEST_COMMAND: [from CONTEXT.md or detected]
+SHARED_EOF
 
-OUTCOME_VERIFICATION:
-- [specific check to confirm outcome, e.g., "grep for button with href=/login"]
-- [curl command, file check, or code inspection to verify]
-```
+read -r -d '' SHARED_ARCH_PRINCIPLES << 'SHARED_EOF' || true
 
 ## Architecture Principles
 - REUSE existing code - search first
@@ -306,72 +312,9 @@ OUTCOME_VERIFICATION:
 - Match existing code style
 
 DO NOT implement. Just plan.
-PLAN_EOF
+SHARED_EOF
 
-read -r -d '' EXECUTE_PROMPT << 'EXEC_EOF' || true
-# EXECUTE STEP
-
-**IMPORTANT: This is step 2 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
-- There is NO human in the loop - just implement the plan
-- Do NOT ask questions or request approval - execute the plan
-- Be direct and factual - no conversational language needed
-
-Read .task file. Follow the plan exactly.
-
-**Your primary job is IMPLEMENTATION - use Write and Edit tools to create/modify files.**
-The PLAN phase already researched the codebase. Trust the plan's EXISTING_CODE and PATTERNS.
-You may read files when needed for implementation, but prioritize writing code over exploration.
-
-## Rules
-- Follow the PLAN steps in order
-- REUSE code listed in EXISTING_CODE
-- Follow PATTERNS for consistency
-- Match existing code style in the project
-- Clear names, no abbreviations
-- Handle errors meaningfully
-
-## Code Quality (adapt to project's tech stack)
-- Keep functions focused (single responsibility)
-- Keep files cohesive (related code together)
-- Comments explain WHY not WHAT
-
-## When Done
-Mark the task complete in TASKS.md with a short note if you learned something useful:
-- Simple completion: `- [x] Task description`
-- With note: `- [x] Task description → Note: [one-line insight]`
-
-Only add a note if it would help future tasks (e.g., "used X instead of Y", "requires Z first").
-
-Then commit: "feat: [task description]"
-EXEC_EOF
-
-read -r -d '' REVIEW_PROMPT << 'REVIEW_EOF' || true
-# REVIEW STEP
-
-**IMPORTANT: This is step 3 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
-- There is NO human in the loop - your output feeds directly into the FIX step
-- Do NOT ask questions like "Would you like me to fix this?"
-- Do NOT offer to make changes - just document findings
-- The FIX step will automatically process everything you report
-- Be direct and factual - no conversational language needed
-
-Review implementation against .task plan.
-
-## 1. VERIFY OUTCOME FIRST (Most Important!)
-Read EXPECTED_OUTCOME and OUTCOME_VERIFICATION from .task file.
-Actually run the verification steps to confirm the outcome was achieved:
-- If it says "button exists with href=/login" → grep/search for it
-- If it says "API returns 200" → curl the endpoint
-- If it says "error message shows" → check the component renders it
-- If it says "file created at X" → verify file exists
-
-**If outcome NOT achieved**: This is a 🔴 BLOCKER - the task isn't done.
-**If outcome achieved**: Continue to code quality checks.
-
-## 2. Check Plan Compliance
-- Was EXISTING_CODE reused?
-- Were PATTERNS followed?
-- All PLAN steps done?
+read -r -d '' SHARED_FOCUS_AREAS << 'SHARED_EOF' || true
 
 ## Auto-Detect Focus Areas
 Based on what was implemented, check relevant areas:
@@ -401,6 +344,9 @@ Based on what was implemented, check relevant areas:
 **If touched UI:**
 - Matches design system (if specs/DESIGN_SYSTEM.md exists)
 - Accessibility basics
+SHARED_EOF
+
+read -r -d '' SHARED_REVIEW_CHECKS << 'SHARED_EOF' || true
 
 ## Run Checks
 Use TEST_COMMAND from .task file (or detect from CONTEXT.md)
@@ -409,6 +355,9 @@ Use TEST_COMMAND from .task file (or detect from CONTEXT.md)
 Check what testing infrastructure exists in the project:
 - If tests exist → run them, ensure new code is covered
 - Testing expectations depend on context (see mode-specific guidance if present)
+SHARED_EOF
+
+read -r -d '' SHARED_ISSUE_CLASSIFICATION << 'SHARED_EOF' || true
 
 ## Classify Issues by Type AND Severity
 
@@ -417,7 +366,7 @@ Check what testing infrastructure exists in the project:
 - 💻 CODE: Bugs, logic errors, security issues, missing error handling
 
 ### Severity:
-- 🔴 BLOCKER: Security vulnerabilities, data loss risk, crashes
+- 🔴 BLOCKER: Security vulnerabilities, data loss risk, crashes, outcome not achieved
 - 🟡 ISSUE: Bugs, logic errors, missing error handling
 - 🟢 SUGGESTION: Style improvements, minor optimizations
 
@@ -442,109 +391,9 @@ Before flagging unused code, check TASKS.md:
 - No pending task needs it? → Flag as ISSUE: remove dead code
 
 Don't suppress warnings for scaffolding. Don't keep actual dead code.
+SHARED_EOF
 
-## Append to .task:
-```
-REVIEW_RESULT:
-OUTCOME_ACHIEVED: yes/no
-OUTCOME_EVIDENCE: [what you checked and found]
-BUILD_PASSED: yes/no
-TESTS_PASSED: yes/no
-
-ENVIRONMENT_ISSUES:
-- [type] [description] → REMEDIATION: [how to fix]
-
-BLOCKERS:
-- [if any - includes outcome not achieved]
-
-ISSUES:
-- [if any]
-
-SUGGESTIONS:
-- [if any, brief]
-```
-
-If all good, write:
-```
-REVIEW_RESULT:
-OUTCOME_ACHIEVED: yes
-OUTCOME_EVIDENCE: [brief proof]
-BUILD_PASSED: yes
-TESTS_PASSED: yes
-ISSUES: none
-```
-REVIEW_EOF
-
-read -r -d '' FIX_PROMPT << 'FIX_EOF' || true
-# FIX STEP
-
-**IMPORTANT: This is step 4 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
-- There is NO human in the loop - fix issues found by REVIEW automatically
-- Do NOT ask questions or request approval - just fix the issues
-- Be direct and factual - no conversational language needed
-
-Read REVIEW_RESULT in .task file. Fix issues by priority.
-
-## NOTHING TO FIX? STOP HERE.
-If REVIEW shows:
-- OUTCOME_ACHIEVED: yes
-- No ENVIRONMENT_ISSUES (empty or "none")
-- No BLOCKERS (empty or "none")
-- No ISSUES (empty or "none")
-
-Then there is NOTHING for you to do. Simply:
-1. Delete the .task file
-2. Ensure task is marked `- [x]` in TASKS.md
-3. STOP IMMEDIATELY - do NOT implement new code, do NOT start new tasks
-
-The FIX step ONLY fixes problems found by REVIEW. It does NOT:
-- Implement new features
-- Start the next task
-- Add improvements not flagged by REVIEW
-- Do anything beyond fixing flagged issues
-
-If there are no issues, your entire job is: delete .task, mark complete, done.
-
-## Priority Order (only if issues exist)
-1. ❌ OUTCOME_ACHIEVED: no - The task isn't done! Fix implementation first.
-2. 🔧 ENVIRONMENT_ISSUES - CREATE REMEDIATION TASKS
-3. 🔴 BLOCKERS - code issues that must be fixed
-4. 🟡 ISSUES - fix if straightforward
-5. 🟢 SUGGESTIONS - fix only if trivial
-
-## If OUTCOME_ACHIEVED is "no"
-The implementation doesn't do what the task required. You must:
-1. Read EXPECTED_OUTCOME and OUTCOME_EVIDENCE from .task
-2. Figure out WHY the outcome wasn't achieved
-3. Fix the implementation until the outcome IS achieved
-4. Re-verify the outcome yourself before proceeding
-This is NOT optional - a task without its outcome is not done.
-
-## Handling ENVIRONMENT_ISSUES (Critical!)
-Environment issues are SOLVABLE. You must:
-1. Read the REMEDIATION from .task file
-2. ADD A NEW TASK to TASKS.md to fix the environment issue
-   - Insert it BEFORE the current task (so it runs next iteration)
-   - Format: `- [ ] Setup: [remediation action]`
-   - Examples:
-     - `- [ ] Setup: Install Chromium and dependencies in Dockerfile.dev`
-     - `- [ ] Setup: Add missing npm package X to dependencies`
-     - `- [ ] Setup: Configure Docker to support tool Y`
-3. Unmark current task back to `- [ ]` (it will retry after environment is fixed)
-4. Delete .task file
-5. DO NOT mark as blocked - the environment task will fix it
-
-## Your Job for Code Issues
-1. Fix BLOCKERS (mandatory)
-2. Fix ISSUES (should fix)
-3. Consider SUGGESTIONS (nice to have)
-4. Re-run TEST_COMMAND to confirm
-5. Commit fixes: "fix: [description]"
-
-**IMPORTANT: Fix ALL flagged issues, not just ones from the current task.**
-If REVIEW flagged a pre-existing issue (broken build, failing db:push, etc.),
-you MUST fix it. Don't skip issues because "another task caused it."
-A broken codebase blocks all future work - fix it now.
+read -r -d '' SHARED_TEST_INTEGRITY << 'SHARED_EOF' || true
 
 ## NEVER Cheat on Tests
 When a test fails, you MUST fix the IMPLEMENTATION, not the test.
@@ -563,11 +412,391 @@ When a test fails, you MUST fix the IMPLEMENTATION, not the test.
 
 If a test fails, the test is doing its job - it found a bug. Fix the bug.
 A test suite that always passes because you gutted it is worthless.
+SHARED_EOF
+
+read -r -d '' SHARED_OUTCOME_FIX << 'SHARED_EOF' || true
+
+## If ANY OUTCOME not achieved
+The implementation doesn't do what the task required. You must:
+1. Read EXPECTED_OUTCOMES and OUTCOMES_ACHIEVED from .task
+2. Figure out WHY each failed outcome wasn't achieved
+3. Fix the implementation until ALL outcomes ARE achieved
+4. Re-verify the outcomes yourself before proceeding
+This is NOT optional - a task without its outcomes is not done.
+SHARED_EOF
+
+read -r -d '' SHARED_ENV_REMEDIATION << 'SHARED_EOF' || true
+
+## Handling ENVIRONMENT_ISSUES (Critical!)
+Environment issues are SOLVABLE. You must:
+1. Read the REMEDIATION from .task file
+2. ADD A NEW TASK to TASKS.md to fix the environment issue
+   - Insert it BEFORE the current task(s) (so it runs next iteration)
+   - Format:
+     ```
+     - [ ] Setup: [remediation action]
+       > [verification that environment is fixed]
+     ```
+   - Examples:
+     ```
+     - [ ] Setup: Install Chromium and dependencies in Dockerfile.dev
+       > dpkg -l | grep chromium shows package installed
+     ```
+     ```
+     - [ ] Setup: Add missing npm package X to dependencies
+       > node -e "require('X')" exits 0
+     ```
+SHARED_EOF
+
+read -r -d '' SHARED_FIX_CODE_ISSUES << 'SHARED_EOF' || true
+
+## Your Job for Code Issues
+1. Fix BLOCKERS (mandatory)
+2. Fix ISSUES (should fix)
+3. Consider SUGGESTIONS (nice to have)
+4. Re-run TEST_COMMAND to confirm
+5. Commit fixes: "fix: [description]"
+
+**IMPORTANT: Fix ALL flagged issues, not just ones from the current task.**
+If REVIEW flagged a pre-existing issue (broken build, failing db:push, etc.),
+you MUST fix it. Don't skip issues because "another task caused it."
+A broken codebase blocks all future work - fix it now.
+SHARED_EOF
+
+# --- Prompt Builder Functions ---
+
+get_plan_prompt() {
+    local mode="$1"  # "single" or a number (batch size)
+    if [[ "$mode" == "single" ]]; then
+        cat << PLAN_EOF
+# PLAN STEP
+$STEP_HEADER_PLAN
+You are planning ONE task from TASKS.md.
+
+## Your Job
+1. Read CONTEXT.md for project info and commands
+2. Read TASKS.md - find the FIRST unchecked \`- [ ]\` task
+   - **CRITICAL**: Only plan tasks marked \`- [ ]\` (unchecked)
+   - Skip any task marked \`- [x]\` (already complete)
+3. **Parse the full task block**:
+   - **Checkbox line** (\`- [ ] ...\`): the action summary
+   - **Description lines** (2-space indent, plain text): context/guidance for planning
+   - **Verification lines** (2-space indent, \`> \` prefix): machine-verifiable outcomes
+   - **Block ends** at the next blank line or next checkbox line
+   - **Legacy format**: \`- [ ] Action → Outcome\` still works — text before \`→\` is action, text after is a single verification point
+4. Read specs/ folder for detailed specifications
+5. Search the codebase for existing patterns, utilities, components
+6. Write a plan to .task file
+
+## STOP: Verify Task Is Actually Unchecked
+Before planning, CONFIRM the task line starts with \`- [ ]\` (space between brackets).
+If it starts with \`- [x]\`, it's ALREADY DONE - do not plan it, do not create .task file.
+
+## Write to .task file:
+\`\`\`
+TASK: [exact checkbox line from TASKS.md]
+ACTION: [what to implement]
+CONTEXT: [description lines from task block, if any]
+EXPECTED_OUTCOMES:
+- [verification point 1 - from > lines or → part]
+- [verification point 2, if any]
+$SHARED_TASK_FILE_BODY
+OUTCOME_VERIFICATION:
+- [specific check to confirm outcome, e.g., "grep for button with href=/login"]
+- [curl command, file check, or code inspection to verify]
+\`\`\`
+$SHARED_ARCH_PRINCIPLES
+PLAN_EOF
+    else
+        cat << PLAN_EOF
+# PLAN STEP (Batch Mode)
+$STEP_HEADER_PLAN
+You are planning UP TO $mode RELATED tasks from TASKS.md.
+
+## Your Job
+1. Read CONTEXT.md for project info and commands
+2. Read TASKS.md - scan ALL unchecked \`- [ ]\` tasks
+3. **Parse the full task block**:
+   - **Checkbox line** (\`- [ ] ...\`): the action summary
+   - **Description lines** (2-space indent, plain text): context/guidance for planning
+   - **Verification lines** (2-space indent, \`> \` prefix): machine-verifiable outcomes
+   - **Block ends** at the next blank line or next checkbox line
+   - **Legacy format**: \`- [ ] Action → Outcome\` still works — text before \`→\` is action, text after is a single verification point
+4. **Identify naturally related tasks** - look for:
+   - Tasks that touch the same file(s)
+   - Tasks that are part of the same feature/component
+   - Tasks that have logical dependencies (do A before B)
+   - Tasks that share the same patterns/utilities
+5. **Select UP TO $mode tasks** that make sense to do together
+   - Could be 1 task if it's standalone
+   - Could be 2-5 if they're tightly related
+   - Don't force grouping - only batch what naturally belongs together
+6. Read specs/ folder for detailed specifications
+7. Search the codebase for existing patterns, utilities, components
+8. Write a plan to .task file
+
+## STOP: Verify Tasks Are Actually Unchecked
+Before planning, CONFIRM each task line starts with \`- [ ]\` (space between brackets).
+Skip any task marked \`- [x]\` (already complete).
+
+## Write to .task file:
+\`\`\`
+TASKS:
+- [exact checkbox line 1 from TASKS.md]
+- [exact checkbox line 2, if batching]
+
+CONTEXT:
+- Task 1: [description lines from task block, if any]
+- Task 2: [description lines, if any]
+
+EXPECTED_OUTCOMES:
+- Task 1:
+  - [verification point from > lines or → part]
+  - [additional verification point, if any]
+- Task 2:
+  - [verification point]
+$SHARED_TASK_FILE_BODY
+OUTCOME_VERIFICATION:
+- Task 1: [specific check, e.g., "grep for button with href=/login"]
+- Task 2: [verification for task 2]
+\`\`\`
+
+## Grouping Guidelines
+- **DO batch**: All CRUD operations for one model, all UI components for one page, related API endpoints
+- **DON'T batch**: Unrelated features, tasks in different areas of codebase, tasks with no shared context
+- **When in doubt**: Smaller batches are fine. Quality over quantity.
+$SHARED_ARCH_PRINCIPLES
+PLAN_EOF
+    fi
+}
+
+get_execute_prompt() {
+    local mode="$1"  # "single" or "batch"
+    local title intro batch_rule done_text blocks_note commit_msg
+    if [[ "$mode" == "single" ]]; then
+        title="# EXECUTE STEP"
+        intro="Read .task file. Follow the plan exactly."
+        batch_rule=""
+        done_text="Mark the task complete in TASKS.md"
+        blocks_note="Keep any existing description/verification lines in the task block intact."
+        commit_msg='Then commit: "feat: [task description]"'
+    else
+        title="# EXECUTE STEP (Batch Mode)"
+        intro="Read .task file. Follow the plan exactly - implement ALL listed tasks."
+        batch_rule=$'\n- Implement ALL tasks listed in the TASKS section'
+        done_text="Mark ALL completed tasks in TASKS.md"
+        blocks_note="Keep any existing description/verification lines in task blocks intact."
+        commit_msg='Then commit: "feat: [brief summary of all tasks]"'
+    fi
+    cat << EXEC_EOF
+$title
+$STEP_HEADER_EXECUTE
+$intro
+
+**Your primary job is IMPLEMENTATION - use Write and Edit tools to create/modify files.**
+The PLAN phase already researched the codebase. Trust the plan's EXISTING_CODE and PATTERNS.
+You may read files when needed for implementation, but prioritize writing code over exploration.
+
+## Rules
+- Follow the PLAN steps in order$batch_rule
+- REUSE code listed in EXISTING_CODE
+- Follow PATTERNS for consistency
+- Match existing code style in the project
+- Clear names, no abbreviations
+- Handle errors meaningfully
+
+## Code Quality (adapt to project's tech stack)
+- Keep functions focused (single responsibility)
+- Keep files cohesive (related code together)
+- Comments explain WHY not WHAT
+
+## When Done
+$done_text by changing \`- [ ]\` to \`- [x]\`.
+If you learned something useful, add a note on an indented line below:
+\`\`\`
+- [x] Task description
+  Note: [one-line insight]
+\`\`\`
+
+Only add a note if it would help future tasks (e.g., "used X instead of Y", "requires Z first").
+$blocks_note
+
+$commit_msg
+EXEC_EOF
+}
+
+get_review_prompt() {
+    local mode="$1"  # "single" or "batch"
+    if [[ "$mode" == "single" ]]; then
+        cat << REVIEW_EOF
+# REVIEW STEP
+$STEP_HEADER_REVIEW
+Review implementation against .task plan.
+
+## 1. VERIFY OUTCOMES FIRST (Most Important!)
+Read EXPECTED_OUTCOMES and OUTCOME_VERIFICATION from .task file.
+For EACH listed outcome, actually run the verification steps:
+- If it says "button exists with href=/login" → grep/search for it
+- If it says "API returns 200" → curl the endpoint
+- If it says "error message shows" → check the component renders it
+- If it says "file created at X" → verify file exists
+
+**If ANY outcome NOT achieved**: This is a 🔴 BLOCKER - the task isn't done.
+**If ALL outcomes achieved**: Continue to code quality checks.
+
+## 2. Check Plan Compliance
+- Was EXISTING_CODE reused?
+- Were PATTERNS followed?
+- All PLAN steps done?
+$SHARED_FOCUS_AREAS
+$SHARED_REVIEW_CHECKS
+$SHARED_ISSUE_CLASSIFICATION
+
+## Append to .task:
+\`\`\`
+REVIEW_RESULT:
+OUTCOMES_ACHIEVED:
+- [outcome 1]: yes/no - [evidence]
+- [outcome 2]: yes/no - [evidence]
+BUILD_PASSED: yes/no
+TESTS_PASSED: yes/no
+
+ENVIRONMENT_ISSUES:
+- [type] [description] → REMEDIATION: [how to fix]
+
+BLOCKERS:
+- [if any - includes outcomes not achieved]
+
+ISSUES:
+- [if any]
+
+SUGGESTIONS:
+- [if any, brief]
+\`\`\`
+
+If all good, write:
+\`\`\`
+REVIEW_RESULT:
+OUTCOMES_ACHIEVED:
+- [outcome 1]: yes - [brief proof]
+- [outcome 2]: yes - [brief proof]
+BUILD_PASSED: yes
+TESTS_PASSED: yes
+ISSUES: none
+\`\`\`
+REVIEW_EOF
+    else
+        cat << REVIEW_EOF
+# REVIEW STEP (Batch Mode)
+$STEP_HEADER_REVIEW
+Review implementation against .task plan - verify ALL batched tasks.
+
+## 1. VERIFY ALL OUTCOMES (Most Important!)
+Read EXPECTED_OUTCOMES and OUTCOME_VERIFICATION from .task file.
+For EACH task listed, actually run the verification steps:
+- If it says "button exists with href=/login" → grep/search for it
+- If it says "API returns 200" → curl the endpoint
+- If it says "error message shows" → check the component renders it
+- If it says "file created at X" → verify file exists
+
+**Track each task's outcome separately:**
+- Task 1: ✅ achieved / ❌ not achieved
+- Task 2: ✅ achieved / ❌ not achieved
+- etc.
+
+**If ANY outcome NOT achieved**: This is a 🔴 BLOCKER - that task isn't done.
+
+## 2. Check Plan Compliance
+- Were ALL tasks in the batch addressed?
+- Was EXISTING_CODE reused?
+- Were PATTERNS followed?
+- All PLAN steps done?
+$SHARED_FOCUS_AREAS
+$SHARED_REVIEW_CHECKS
+$SHARED_ISSUE_CLASSIFICATION
+
+## Append to .task:
+\`\`\`
+REVIEW_RESULT:
+OUTCOMES_ACHIEVED:
+- Task 1: yes/no - [evidence]
+- Task 2: yes/no - [evidence]
+BUILD_PASSED: yes/no
+TESTS_PASSED: yes/no
+
+ENVIRONMENT_ISSUES:
+- [type] [description] → REMEDIATION: [how to fix]
+
+BLOCKERS:
+- [if any - includes outcomes not achieved]
+
+ISSUES:
+- [if any]
+
+SUGGESTIONS:
+- [if any, brief]
+\`\`\`
+
+If all good, write:
+\`\`\`
+REVIEW_RESULT:
+OUTCOMES_ACHIEVED:
+- Task 1: yes - [brief proof]
+- Task 2: yes - [brief proof]
+BUILD_PASSED: yes
+TESTS_PASSED: yes
+ISSUES: none
+\`\`\`
+REVIEW_EOF
+    fi
+}
+
+get_fix_prompt() {
+    local mode="$1"  # "single" or "batch"
+    if [[ "$mode" == "single" ]]; then
+        cat << FIX_EOF
+# FIX STEP
+$STEP_HEADER_FIX
+Read REVIEW_RESULT in .task file. Fix issues by priority.
+
+## NOTHING TO FIX? STOP HERE.
+If REVIEW shows:
+- All OUTCOMES_ACHIEVED: yes
+- No ENVIRONMENT_ISSUES (empty or "none")
+- No BLOCKERS (empty or "none")
+- No ISSUES (empty or "none")
+
+Then there is NOTHING for you to do. Simply:
+1. Delete the .task file
+2. Ensure task is marked \`- [x]\` in TASKS.md
+3. STOP IMMEDIATELY - do NOT implement new code, do NOT start new tasks
+
+The FIX step ONLY fixes problems found by REVIEW. It does NOT:
+- Implement new features
+- Start the next task
+- Add improvements not flagged by REVIEW
+- Do anything beyond fixing flagged issues
+
+If there are no issues, your entire job is: delete .task, mark complete, done.
+
+## Priority Order (only if issues exist)
+1. ❌ OUTCOMES not achieved - The task isn't done! Fix implementation first.
+2. 🔧 ENVIRONMENT_ISSUES - CREATE REMEDIATION TASKS
+3. 🔴 BLOCKERS - code issues that must be fixed
+4. 🟡 ISSUES - fix if straightforward
+5. 🟢 SUGGESTIONS - fix only if trivial
+$SHARED_OUTCOME_FIX
+$SHARED_ENV_REMEDIATION
+3. Unmark current task back to \`- [ ]\` (it will retry after environment is fixed)
+4. Delete .task file
+5. DO NOT mark as blocked - the environment task will fix it
+$SHARED_FIX_CODE_ISSUES
+$SHARED_TEST_INTEGRITY
 
 ## After Fixing
 If all fixed + tests pass:
 - Delete .task file
-- Ensure task is marked `- [x]` in TASKS.md (with note if useful)
+- Ensure task is marked \`- [x]\` in TASKS.md (with note if useful)
 
 If environment issue found:
 - Add remediation task to TASKS.md (see above)
@@ -576,10 +805,76 @@ If environment issue found:
 - CONTINUE (not blocked!)
 
 If TRUE code blocker (rare - only security/data issues with no fix):
-- Unmark task in TASKS.md back to `- [ ]`
-- Add blocker note: `- [ ] Task description ⚠️ Blocked: [reason]`
+- Unmark task in TASKS.md back to \`- [ ]\`
+- Add blocker note on indented line:
+  \`\`\`
+  - [ ] Task description
+    BLOCKED: [reason]
+  \`\`\`
 - Keep .task file for context
 FIX_EOF
+    else
+        cat << FIX_EOF
+# FIX STEP (Batch Mode)
+$STEP_HEADER_FIX
+Read REVIEW_RESULT in .task file. Fix issues by priority.
+
+## NOTHING TO FIX? STOP HERE.
+If REVIEW shows:
+- ALL OUTCOMES_ACHIEVED: yes
+- No ENVIRONMENT_ISSUES (empty or "none")
+- No BLOCKERS (empty or "none")
+- No ISSUES (empty or "none")
+
+Then there is NOTHING for you to do. Simply:
+1. Delete the .task file
+2. Ensure ALL batched tasks are marked \`- [x]\` in TASKS.md
+3. STOP IMMEDIATELY - do NOT implement new code, do NOT start new tasks
+
+The FIX step ONLY fixes problems found by REVIEW. It does NOT:
+- Implement new features
+- Start the next task
+- Add improvements not flagged by REVIEW
+- Do anything beyond fixing flagged issues
+
+If there are no issues, your entire job is: delete .task, mark all complete, done.
+
+## Priority Order (only if issues exist)
+1. ❌ OUTCOMES not achieved - The task(s) aren't done! Fix implementation first.
+2. 🔧 ENVIRONMENT_ISSUES - CREATE REMEDIATION TASKS
+3. 🔴 BLOCKERS - code issues that must be fixed
+4. 🟡 ISSUES - fix if straightforward
+5. 🟢 SUGGESTIONS - fix only if trivial
+$SHARED_OUTCOME_FIX
+$SHARED_ENV_REMEDIATION
+3. Unmark current tasks back to \`- [ ]\` (they will retry after environment is fixed)
+4. Delete .task file
+5. DO NOT mark as blocked - the environment task will fix it
+$SHARED_FIX_CODE_ISSUES
+$SHARED_TEST_INTEGRITY
+
+## After Fixing
+If all fixed + tests pass:
+- Delete .task file
+- Ensure ALL batched tasks are marked \`- [x]\` in TASKS.md (with note if useful)
+
+If environment issue found:
+- Add remediation task to TASKS.md (see above)
+- Unmark current tasks
+- Delete .task file
+- CONTINUE (not blocked!)
+
+If TRUE code blocker (rare - only security/data issues with no fix):
+- Unmark tasks in TASKS.md back to \`- [ ]\`
+- Add blocker note on indented line:
+  \`\`\`
+  - [ ] Task description
+    BLOCKED: [reason]
+  \`\`\`
+- Keep .task file for context
+FIX_EOF
+    fi
+}
 
 #==============================================================================
 # VERBOSE OUTPUT RULES - Injected into all prompts to save tokens
@@ -1023,14 +1318,39 @@ Break the idea into atomic tasks WITH VERIFIABLE OUTCOMES:
 - **For existing projects**: Tasks should reference existing code to modify/extend
 - Then features from the idea (in logical order)
 - Each task completable in one iteration
-- **Format: `- [ ] Action → Outcome`**
-  - Action: What to implement
-  - Outcome: How to verify it worked (must be machine-checkable)
-- Examples:
-  - `- [ ] Add login button to navbar → Button with href="/login" exists in header`
-  - `- [ ] Create /api/users endpoint → GET /api/users returns 200 with JSON array`
-  - `- [ ] Add email validation → Invalid email shows error message`
 - Number of tasks should match project scope (don't pad)
+
+**Task format** (multi-line blocks):
+```markdown
+- [ ] Action summary (imperative verb)
+  Optional context: guidance, references, constraints.
+  > Verification point 1 (machine-checkable)
+  > Verification point 2 (if needed)
+```
+
+Rules:
+- **Checkbox line**: short, scannable action — the only line grep patterns match
+- **Description lines** (optional): 2-space indent, plain text — context for implementation
+- **Verification lines** (optional): 2-space indent, `> ` prefix — machine-verifiable outcomes
+- **Block ends**: blank line or next checkbox line
+- Simple tasks can be one-liners with no body
+
+**Examples at different complexity levels:**
+```markdown
+- [ ] Install dependencies and verify dev server starts
+  > node_modules/ directory exists
+  > npm run dev starts without errors
+
+- [ ] Add login button to navbar
+  > Button with href="/login" exists in header component
+
+- [ ] Create /api/users endpoint
+  Follow existing /api/posts pattern.
+  Use auth middleware from src/middleware/auth.ts.
+  > GET /api/users returns 200 with JSON array
+  > Response includes id, name, email fields
+  > Unauthenticated requests return 401
+```
 
 ### 3. specs/ folder (only if needed)
 Create specs that ADD VALUE - don't create empty scaffolds:
@@ -1200,13 +1520,27 @@ Your job: Update CONTEXT.md if needed and ADD new tasks to TASKS.md.
 - ADD new tasks at the bottom based on the notes
 - Group related new tasks together
 - Each task should be atomic (one iteration)
-- **Format: `- [ ] Action → Outcome`** (outcome must be machine-verifiable)
 
-## Task Naming (always include → Outcome)
-- Bug fix: `- [ ] Fix: [bug] → [expected behavior after fix]`
-- New feature: `- [ ] Add: [feature] → [how to verify it works]`
-- Tweak/adjust: `- [ ] Adjust: [change] → [what should be different]`
-- Refactor: `- [ ] Refactor: [target] → [verification that behavior unchanged]`
+**Task format** (multi-line blocks):
+```markdown
+- [ ] Action summary (imperative verb)
+  Optional context: guidance, references, constraints.
+  > Verification point (machine-checkable)
+```
+
+Examples by type:
+```markdown
+- [ ] Fix: Login button not responding on mobile
+  Tested on iOS Safari and Chrome Android.
+  > Clicking login button navigates to /login on mobile viewport
+
+- [ ] Add: Dark mode toggle
+  > Toggle button exists in settings panel
+  > Selecting dark mode applies dark theme to all pages
+
+- [ ] Adjust: Increase form padding on mobile
+  > Form container has min 16px padding below 768px viewport
+```
 
 ## What NOT to Do
 - Don't remove or reorder existing tasks
@@ -1416,6 +1750,7 @@ if [[ "$1" == "task" ]]; then
             cd "$ORIGINAL_DIR"
             git worktree remove "$WORKTREE_PATH" --force 2>/dev/null || true
         fi
+        cleanup_temp
     }
 
     # Trap to cleanup on exit/interrupt
@@ -1480,7 +1815,8 @@ $(cat CLAUDE.md)
 - Just commit your changes during EXECUTE phase
 - PR creation happens at the end (handled by bjarne)
 "
-        GIT_EXAMPLE="- [ ] Add onClick handler to login button → Button calls handleLogin function when clicked"
+        GIT_EXAMPLE="- [ ] Add onClick handler to login button
+  > Button calls handleLogin function when clicked"
     else
         GIT_WORKFLOW_INSTRUCTIONS="## Git Workflow (if git available)
 1. **First subtask should create a feature branch** (unless task specifies otherwise)
@@ -1491,8 +1827,11 @@ $(cat CLAUDE.md)
 
 If the task description includes specific git instructions (branch name, workflow), follow those.
 "
-        GIT_EXAMPLE="- [ ] Create feature branch \`feature/login-fix\` → Branch exists and is checked out
-- [ ] Add onClick handler to login button → Button calls handleLogin function when clicked"
+        GIT_EXAMPLE="- [ ] Create feature branch \`feature/login-fix\`
+  > Branch exists and is checked out
+
+- [ ] Add onClick handler to login button
+  > Button calls handleLogin function when clicked"
     fi
 
     read -r -d '' DECOMPOSE_PROMPT_BASE << 'DECOMPOSE_EOF' || true
@@ -1512,13 +1851,22 @@ The project's existing files are NOT bjarne artifacts - do NOT remove them.
 ## Instructions
 1. Explore the codebase to understand the relevant code
 2. Break this into discrete subtasks (or keep as one if simple enough)
-3. Each subtask must have: Action → Outcome (verifiable)
+3. Each subtask must have a clear action and at least one verifiable outcome
 4. Output ONLY a markdown checklist to SUBTASKS.md file
 
 ## Subtask Format
-Each line must be: `- [ ] Action → Outcome`
-- Action: What to implement (specific, atomic)
-- Outcome: How to verify it worked (must be machine-checkable)
+Use multi-line task blocks:
+```markdown
+- [ ] Action summary (imperative verb)
+  Optional context for implementation.
+  > Verification point (machine-checkable)
+```
+
+Rules:
+- **Checkbox line**: short action — the only line grep patterns match
+- **Description lines** (optional): 2-space indent, plain text
+- **Verification lines**: 2-space indent, `> ` prefix — machine-verifiable outcomes
+- Simple subtasks can be one-liners if verification is obvious
 
 ## Output
 Write ONLY the subtask checklist to the SUBTASKS.md file. Nothing else.
@@ -1535,7 +1883,9 @@ $GIT_WORKFLOW_INSTRUCTIONS
 
 ## Examples
 $GIT_EXAMPLE
-- [ ] Test login flow → Clicking login button redirects to /dashboard
+
+- [ ] Test login flow
+  > Clicking login button redirects to /dashboard
 
 ---
 
@@ -1581,6 +1931,9 @@ $DECOMPOSE_PROMPT_BASE"
     fi
 
     # Build task mode context header (injected before each prompt)
+    # NOTE: Task mode always instructs batching regardless of --batch flag.
+    # Subtasks are decomposed from a single user task, so they're tightly related
+    # and batching them is the efficient default.
     TASK_MODE_HEADER="## TASK MODE - Isolated Fix
 $WORKTREE_CONTEXT
 **File Mappings (read these instead of defaults):**
@@ -1594,14 +1947,15 @@ $WORKTREE_CONTEXT
 - If tests exist and this change naturally fits, add/update tests
 - If no tests exist, outcome verification (grep, curl, file check) is sufficient
 
-**IMPORTANT - Batch Related Tasks:**
+**IMPORTANT - Batch Related Subtasks:**
+Subtasks come from decomposing a single user task, so they are often tightly related.
 Instead of picking only the FIRST unchecked task, you should:
 1. Look at ALL unchecked tasks in the subtasks file
 2. Identify a logical GROUP of related/coupled tasks (e.g., all methods in one class, all changes to one file, all tightly coupled changes)
 3. Plan and execute them TOGETHER in one iteration
 4. This reduces redundant exploration and keeps related changes atomic
 
-Write to .task file with format:
+Write to .task file using \`TASKS:\` (plural) instead of \`TASK:\`:
 \`\`\`
 TASKS: [list the related tasks you're tackling together]
 EXPECTED_OUTCOMES:
@@ -1619,6 +1973,12 @@ EXPECTED_OUTCOMES:
     echo -e "${CYAN}Starting task loop - max $TASK_MAX_ITERATIONS iterations${NC}"
     echo ""
 
+    # Set prompts once before the loop (task mode always uses single)
+    ACTIVE_PLAN_PROMPT=$(get_plan_prompt "single")
+    ACTIVE_EXECUTE_PROMPT=$(get_execute_prompt "single")
+    ACTIVE_REVIEW_PROMPT=$(get_review_prompt "single")
+    ACTIVE_FIX_PROMPT=$(get_fix_prompt "single")
+
     for i in $(seq 1 $TASK_MAX_ITERATIONS); do
         # Check for remaining subtasks
         if ! grep -q '^\s*- \[ \]' "$TASK_SUBTASKS"; then
@@ -1634,12 +1994,12 @@ EXPECTED_OUTCOMES:
         # Build context for this iteration (task mode header + project context)
         ITER_CONTEXT="$TASK_MODE_HEADER$PROJECT_CONTEXT$SPECS_CONTENT$CLAUDE_MD_CONTENT"
 
-        # PLAN (uses main PLAN_PROMPT with task context)
+        # PLAN
         echo -e "${BLUE}[1/4 PLAN]${NC} Analyzing subtask..."
         task_log "INFO" "[PLAN] Starting..."
         if ! run_claude "$ITER_CONTEXT
 
-$PLAN_PROMPT" "TASK_PLAN"; then
+$ACTIVE_PLAN_PROMPT" "TASK_PLAN"; then
             echo -e "${RED}Plan phase failed - aborting${NC}"
             task_log "ERROR" "[PLAN] Failed - aborting"
             break
@@ -1655,36 +2015,36 @@ $PLAN_PROMPT" "TASK_PLAN"; then
         CURRENT_TASKS=$(grep -E '^TASK:|^TASKS:' "$TASK_STATE_FILE" 2>/dev/null | head -3)
         task_log "INFO" "[PLAN] Working on: $CURRENT_TASKS"
 
-        # EXECUTE (uses main EXECUTE_PROMPT with task context)
+        # EXECUTE
         echo -e "${BLUE}[2/4 EXECUTE]${NC} Implementing..."
         task_log "INFO" "[EXECUTE] Starting..."
         if ! run_claude "$ITER_CONTEXT
 
-$EXECUTE_PROMPT" "TASK_EXECUTE"; then
+$ACTIVE_EXECUTE_PROMPT" "TASK_EXECUTE"; then
             echo -e "${RED}Execute phase failed - aborting${NC}"
             task_log "ERROR" "[EXECUTE] Failed - aborting"
             break
         fi
         task_log "INFO" "[EXECUTE] Complete"
 
-        # REVIEW (uses main REVIEW_PROMPT with task context)
+        # REVIEW
         echo -e "${BLUE}[3/4 REVIEW]${NC} Reviewing..."
         task_log "INFO" "[REVIEW] Starting..."
         if ! run_claude "$ITER_CONTEXT
 
-$REVIEW_PROMPT" "TASK_REVIEW"; then
+$ACTIVE_REVIEW_PROMPT" "TASK_REVIEW"; then
             echo -e "${RED}Review phase failed - aborting${NC}"
             task_log "ERROR" "[REVIEW] Failed - aborting"
             break
         fi
         task_log "INFO" "[REVIEW] Complete"
 
-        # FIX (uses main FIX_PROMPT with task context)
+        # FIX
         echo -e "${BLUE}[4/4 FIX]${NC} Fixing..."
         task_log "INFO" "[FIX] Starting..."
         if ! run_claude "$ITER_CONTEXT
 
-$FIX_PROMPT" "TASK_FIX"; then
+$ACTIVE_FIX_PROMPT" "TASK_FIX"; then
             echo -e "${RED}Fix phase failed - aborting${NC}"
             task_log "ERROR" "[FIX] Failed - aborting"
             break
@@ -1912,332 +2272,6 @@ MAIN_MODE_HEADER="## DEVELOPMENT MODE - Testing Requirements
 
 "
 
-# Batch mode prompts (override base prompts when batching)
-get_batch_plan_prompt() {
-    local batch_size="$1"
-    cat << BATCH_PLAN_EOF
-# PLAN STEP (Batch Mode)
-
-**IMPORTANT: This is step 1 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
-- There is NO human in the loop - your output feeds into the next step
-- Do NOT ask questions or request clarification - work with what you have
-- Be direct and factual - no conversational language needed
-
-You are planning UP TO $batch_size RELATED tasks from TASKS.md.
-
-## Your Job
-1. Read CONTEXT.md for project info and commands
-2. Read TASKS.md - scan ALL unchecked \`- [ ]\` tasks
-3. **Identify naturally related tasks** - look for:
-   - Tasks that touch the same file(s)
-   - Tasks that are part of the same feature/component
-   - Tasks that have logical dependencies (do A before B)
-   - Tasks that share the same patterns/utilities
-4. **Select UP TO $batch_size tasks** that make sense to do together
-   - Could be 1 task if it's standalone
-   - Could be 2-5 if they're tightly related
-   - Don't force grouping - only batch what naturally belongs together
-5. Read specs/ folder for detailed specifications
-6. Search the codebase for existing patterns, utilities, components
-7. Write a plan to .task file
-
-## STOP: Verify Tasks Are Actually Unchecked
-Before planning, CONFIRM each task line starts with \`- [ ]\` (space between brackets).
-Skip any task marked \`- [x]\` (already complete).
-
-## Write to .task file:
-\`\`\`
-TASKS:
-- [exact task 1 text from TASKS.md]
-- [exact task 2 text, if batching]
-- [etc.]
-
-EXPECTED_OUTCOMES:
-- Task 1: [how to verify success - from the → part]
-- Task 2: [verification for task 2]
-
-EXISTING_CODE:
-- [file/function to reuse]
-
-PATTERNS:
-- [pattern from codebase to follow]
-
-PLAN:
-1. [specific step - note which task(s) it addresses]
-2. [specific step]
-
-FILES_TO_CREATE: [list]
-FILES_TO_MODIFY: [list]
-TEST_COMMAND: [from CONTEXT.md or detected]
-
-OUTCOME_VERIFICATION:
-- Task 1: [specific check, e.g., "grep for button with href=/login"]
-- Task 2: [verification for task 2]
-\`\`\`
-
-## Grouping Guidelines
-- **DO batch**: All CRUD operations for one model, all UI components for one page, related API endpoints
-- **DON'T batch**: Unrelated features, tasks in different areas of codebase, tasks with no shared context
-- **When in doubt**: Smaller batches are fine. Quality over quantity.
-
-## Architecture Principles
-- REUSE existing code - search first
-- EXTEND existing files when logical
-- ONE clear responsibility per file
-- Follow existing patterns in codebase
-- Match existing code style
-
-DO NOT implement. Just plan.
-BATCH_PLAN_EOF
-}
-
-get_batch_execute_prompt() {
-    cat << 'BATCH_EXEC_EOF'
-# EXECUTE STEP (Batch Mode)
-
-**IMPORTANT: This is step 2 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
-- There is NO human in the loop - just implement the plan
-- Do NOT ask questions or request approval - execute the plan
-- Be direct and factual - no conversational language needed
-
-Read .task file. Follow the plan exactly - implement ALL listed tasks.
-
-**Your primary job is IMPLEMENTATION - use Write and Edit tools to create/modify files.**
-The PLAN phase already researched the codebase. Trust the plan's EXISTING_CODE and PATTERNS.
-You may read files when needed for implementation, but prioritize writing code over exploration.
-
-## Rules
-- Follow the PLAN steps in order
-- Implement ALL tasks listed in the TASKS section
-- REUSE code listed in EXISTING_CODE
-- Follow PATTERNS for consistency
-- Match existing code style in the project
-- Clear names, no abbreviations
-- Handle errors meaningfully
-
-## Code Quality (adapt to project's tech stack)
-- Keep functions focused (single responsibility)
-- Keep files cohesive (related code together)
-- Comments explain WHY not WHAT
-
-## When Done
-Mark ALL completed tasks in TASKS.md with a short note if you learned something useful:
-- Simple completion: `- [x] Task description`
-- With note: `- [x] Task description → Note: [one-line insight]`
-
-Only add a note if it would help future tasks (e.g., "used X instead of Y", "requires Z first").
-
-Then commit: "feat: [brief summary of all tasks]"
-BATCH_EXEC_EOF
-}
-
-get_batch_review_prompt() {
-    cat << 'BATCH_REVIEW_EOF'
-# REVIEW STEP (Batch Mode)
-
-**IMPORTANT: This is step 3 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
-- There is NO human in the loop - your output feeds directly into the FIX step
-- Do NOT ask questions like "Would you like me to fix this?"
-- Do NOT offer to make changes - just document findings
-- The FIX step will automatically process everything you report
-- Be direct and factual - no conversational language needed
-
-Review implementation against .task plan - verify ALL batched tasks.
-
-## 1. VERIFY ALL OUTCOMES (Most Important!)
-Read EXPECTED_OUTCOMES and OUTCOME_VERIFICATION from .task file.
-For EACH task listed, actually run the verification steps:
-- If it says "button exists with href=/login" → grep/search for it
-- If it says "API returns 200" → curl the endpoint
-- If it says "error message shows" → check the component renders it
-- If it says "file created at X" → verify file exists
-
-**Track each task's outcome separately:**
-- Task 1: ✅ achieved / ❌ not achieved
-- Task 2: ✅ achieved / ❌ not achieved
-- etc.
-
-**If ANY outcome NOT achieved**: This is a 🔴 BLOCKER - that task isn't done.
-
-## 2. Check Plan Compliance
-- Were ALL tasks in the batch addressed?
-- Was EXISTING_CODE reused?
-- Were PATTERNS followed?
-- All PLAN steps done?
-
-## Auto-Detect Focus Areas
-Based on what was implemented, check relevant areas:
-
-**If touched auth/passwords/tokens/API keys:**
-- Input validation and sanitization
-- No hardcoded secrets
-- Secure token handling
-
-**If touched database/SQL:**
-- Prepared statements (no SQL injection)
-- Proper error handling
-
-**If touched user input/forms:**
-- Input validation
-- XSS prevention (escape output)
-
-**If touched API endpoints:**
-- Proper response format
-- Error responses
-- Authentication checks
-
-**If touched async/state:**
-- Race condition checks
-- Error state handling
-
-**If touched UI:**
-- Matches design system (if specs/DESIGN_SYSTEM.md exists)
-- Accessibility basics
-
-## Run Checks
-Use TEST_COMMAND from .task file (or detect from CONTEXT.md)
-
-## Classify Issues by Type AND Severity
-
-### Issue Types:
-- 🔧 ENVIRONMENT: Missing tools, dependencies, wrong container setup, config needed
-- 💻 CODE: Bugs, logic errors, security issues, missing error handling
-
-### Severity:
-- 🔴 BLOCKER: Security vulnerabilities, data loss risk, crashes, outcome not achieved
-- 🟡 ISSUE: Bugs, logic errors, missing error handling
-- 🟢 SUGGESTION: Style improvements, minor optimizations
-
-## Append to .task:
-```
-REVIEW_RESULT:
-OUTCOMES_ACHIEVED:
-- Task 1: yes/no - [evidence]
-- Task 2: yes/no - [evidence]
-BUILD_PASSED: yes/no
-TESTS_PASSED: yes/no
-
-ENVIRONMENT_ISSUES:
-- [type] [description] → REMEDIATION: [how to fix]
-
-BLOCKERS:
-- [if any - includes outcomes not achieved]
-
-ISSUES:
-- [if any]
-
-SUGGESTIONS:
-- [if any, brief]
-```
-
-If all good, write:
-```
-REVIEW_RESULT:
-OUTCOMES_ACHIEVED:
-- Task 1: yes - [brief proof]
-- Task 2: yes - [brief proof]
-BUILD_PASSED: yes
-TESTS_PASSED: yes
-ISSUES: none
-```
-BATCH_REVIEW_EOF
-}
-
-get_batch_fix_prompt() {
-    cat << 'BATCH_FIX_EOF'
-# FIX STEP (Batch Mode)
-
-**IMPORTANT: This is step 4 of 4 in an automated pipeline (PLAN → EXECUTE → REVIEW → FIX).**
-- There is NO human in the loop - fix issues found by REVIEW automatically
-- Do NOT ask questions or request approval - just fix the issues
-- Be direct and factual - no conversational language needed
-
-Read REVIEW_RESULT in .task file. Fix issues by priority.
-
-## NOTHING TO FIX? STOP HERE.
-If REVIEW shows:
-- ALL OUTCOMES_ACHIEVED: yes
-- No ENVIRONMENT_ISSUES (empty or "none")
-- No BLOCKERS (empty or "none")
-- No ISSUES (empty or "none")
-
-Then there is NOTHING for you to do. Simply:
-1. Delete the .task file
-2. Ensure ALL batched tasks are marked `- [x]` in TASKS.md
-3. STOP IMMEDIATELY - do NOT implement new code, do NOT start new tasks
-
-The FIX step ONLY fixes problems found by REVIEW. It does NOT:
-- Implement new features
-- Start the next task
-- Add improvements not flagged by REVIEW
-- Do anything beyond fixing flagged issues
-
-If there are no issues, your entire job is: delete .task, mark all complete, done.
-
-## Priority Order (only if issues exist)
-1. ❌ OUTCOMES not achieved - The task(s) aren't done! Fix implementation first.
-2. 🔧 ENVIRONMENT_ISSUES - CREATE REMEDIATION TASKS
-3. 🔴 BLOCKERS - code issues that must be fixed
-4. 🟡 ISSUES - fix if straightforward
-5. 🟢 SUGGESTIONS - fix only if trivial
-
-## If ANY OUTCOME not achieved
-The implementation doesn't do what the task required. You must:
-1. Read EXPECTED_OUTCOMES and OUTCOMES_ACHIEVED from .task
-2. Figure out WHY each failed outcome wasn't achieved
-3. Fix the implementation until ALL outcomes ARE achieved
-4. Re-verify the outcomes yourself before proceeding
-This is NOT optional - a task without its outcome is not done.
-
-## Handling ENVIRONMENT_ISSUES (Critical!)
-Environment issues are SOLVABLE. You must:
-1. Read the REMEDIATION from .task file
-2. ADD A NEW TASK to TASKS.md to fix the environment issue
-   - Insert it BEFORE the current tasks (so it runs next iteration)
-   - Format: `- [ ] Setup: [remediation action]`
-3. Unmark current tasks back to `- [ ]` (they will retry after environment is fixed)
-4. Delete .task file
-5. DO NOT mark as blocked - the environment task will fix it
-
-## Your Job for Code Issues
-1. Fix BLOCKERS (mandatory)
-2. Fix ISSUES (should fix)
-3. Consider SUGGESTIONS (nice to have)
-4. Re-run TEST_COMMAND to confirm
-5. Commit fixes: "fix: [description]"
-
-## NEVER Cheat on Tests
-When a test fails, you MUST fix the IMPLEMENTATION, not the test.
-
-**Forbidden "fixes" that are actually cheating:**
-- Mocking a return value to make the test pass
-- Weakening assertions (changing `toBe(5)` to `toBeTruthy()`)
-- Removing test cases that fail
-- Adding `.skip` or commenting out failing tests
-- Stubbing the function being tested to return expected values
-
-**The ONLY time you may change a test:**
-- The test itself has a bug (wrong expected value, typo)
-- Upstream changes made the test's assumptions invalid (API changed, schema changed)
-- AND you verify the test still tests meaningful behavior after your change
-
-## After Fixing
-If all fixed + tests pass:
-- Delete .task file
-- Ensure ALL batched tasks are marked `- [x]` in TASKS.md (with note if useful)
-
-If environment issue found:
-- Add remediation task to TASKS.md (see above)
-- Unmark current tasks
-- Delete .task file
-- CONTINUE (not blocked!)
-
-If TRUE code blocker (rare - only security/data issues with no fix):
-- Unmark tasks in TASKS.md back to `- [ ]`
-- Add blocker note: `- [ ] Task description ⚠️ Blocked: [reason]`
-- Keep .task file for context
-BATCH_FIX_EOF
-}
 
 # Load context fresh each iteration
 load_context() {
@@ -2291,15 +2325,15 @@ for i in $(seq 1 $MAX_ITERATIONS); do
 
     # Select prompts based on batch mode
     if [[ "$BATCH_MODE" == true ]]; then
-        ACTIVE_PLAN_PROMPT=$(get_batch_plan_prompt "$BATCH_SIZE")
-        ACTIVE_EXECUTE_PROMPT=$(get_batch_execute_prompt)
-        ACTIVE_REVIEW_PROMPT=$(get_batch_review_prompt)
-        ACTIVE_FIX_PROMPT=$(get_batch_fix_prompt)
+        ACTIVE_PLAN_PROMPT=$(get_plan_prompt "$BATCH_SIZE")
+        ACTIVE_EXECUTE_PROMPT=$(get_execute_prompt "batch")
+        ACTIVE_REVIEW_PROMPT=$(get_review_prompt "batch")
+        ACTIVE_FIX_PROMPT=$(get_fix_prompt "batch")
     else
-        ACTIVE_PLAN_PROMPT="$PLAN_PROMPT"
-        ACTIVE_EXECUTE_PROMPT="$EXECUTE_PROMPT"
-        ACTIVE_REVIEW_PROMPT="$REVIEW_PROMPT"
-        ACTIVE_FIX_PROMPT="$FIX_PROMPT"
+        ACTIVE_PLAN_PROMPT=$(get_plan_prompt "single")
+        ACTIVE_EXECUTE_PROMPT=$(get_execute_prompt "single")
+        ACTIVE_REVIEW_PROMPT=$(get_review_prompt "single")
+        ACTIVE_FIX_PROMPT=$(get_fix_prompt "single")
     fi
 
     # PLAN
