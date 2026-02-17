@@ -70,9 +70,9 @@ This is what separates Bjarne from naive loops:
 ## How It Works
 
 ```
-idea.md → INIT → [PLAN → EXECUTE → REVIEW → FIX] × N → Done
-                              ↑
-                    notes.md → REFRESH (add more tasks)
+idea.md → INIT → VALIDATE → [PLAN → EXECUTE → REVIEW → FIX] × N → Done
+                                          ↑
+                            notes.md → REFRESH → VALIDATE
 
         "fix X" → TASK → [PLAN → EXECUTE → REVIEW → FIX] → Branch + PR
                          (isolated state, auto-cleanup)
@@ -227,7 +227,7 @@ A web app for freelancers to create and manage invoices.
 bjarne init idea.md
 ```
 
-Creates `CONTEXT.md`, `TASKS.md`, and optionally `specs/`.
+Creates `CONTEXT.md`, `TASKS.md`, and optionally `specs/`. Then runs a **validation pass** that checks for vague tasks, ordering issues, contradictions, duplicates, and scope creep before the loop starts.
 
 **Works on existing projects!** If you run `init` in a folder with existing code, Bjarne will detect your codebase, understand what's built, and create tasks that build on your existing code.
 
@@ -288,7 +288,7 @@ bjarne refresh notes.md
 bjarne  # run again
 ```
 
-Bjarne converts your notes into properly formatted tasks and continues.
+Bjarne converts your notes into properly formatted tasks, runs a validation pass to catch conflicts with existing tasks, and continues.
 
 ### Task Mode (Isolated Fixes)
 

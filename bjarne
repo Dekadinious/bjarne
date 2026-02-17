@@ -344,6 +344,11 @@ Based on what was implemented, check relevant areas:
 **If touched UI:**
 - Matches design system (if specs/DESIGN_SYSTEM.md exists)
 - Accessibility basics
+
+**Always check (every review):**
+- Code duplication: similar logic copy-pasted across files or functions
+- Missed reuse: reimplementing something that already exists in the project
+- Extract opportunities: repeated patterns that should be a shared helper/utility
 SHARED_EOF
 
 read -r -d '' SHARED_REVIEW_CHECKS << 'SHARED_EOF' || true
@@ -462,6 +467,62 @@ If REVIEW flagged a pre-existing issue (broken build, failing db:push, etc.),
 you MUST fix it. Don't skip issues because "another task caused it."
 A broken codebase blocks all future work - fix it now.
 SHARED_EOF
+
+read -r -d '' VALIDATE_PROMPT << 'VALIDATE_EOF' || true
+
+# VALIDATION PASS - Review Planning Artifacts
+
+**IMPORTANT: This is an automated validation step in the pipeline.**
+- There is NO human in the loop
+- Do NOT ask questions or request clarification
+- Fix issues directly by editing files, or leave them alone
+- Prefer the smallest edit that fixes each issue
+- If everything looks good, output only: VALIDATION PASSED
+
+You are reviewing project planning files for coherence.
+These files drive an automated PLAN → EXECUTE → REVIEW → FIX loop.
+Each task is picked up sequentially. A bad plan wastes every iteration.
+
+## Read all planning files:
+- CONTEXT.md - project reference and tech decisions
+- TASKS.md - the task checklist
+- specs/ - detailed specifications (if any)
+
+Completed tasks (- [x]) are context only. Do not modify them.
+Focus your review on unchecked tasks (- [ ]).
+
+## Check For (in priority order):
+
+1. **Vague tasks**: Tasks missing verification points (> lines)
+   - Every task needs at least one machine-verifiable outcome
+   - Fix: add > verification lines with concrete checks
+
+2. **Task ordering**: Tasks that depend on output from a later task
+   - Fix: reorder so dependencies come first
+
+3. **Contradictions**: Conflicting tech choices, patterns, or approaches across files
+   - Fix: pick one, make it consistent everywhere
+
+4. **Duplicate work**: Multiple tasks that would create or modify the same file/function for the same purpose
+   - Fix: consolidate into one task, have others reference it
+
+5. **Spec-task gaps**: Specs that mention features no task covers, or tasks that reference specs that do not exist
+   - Fix: add missing tasks or update specs
+
+6. **CONTEXT.md commands**: Build/Test/Run commands that do not match the tech stack
+   - Fix: correct the commands
+
+7. **Scope creep**: Tasks that go beyond what the original idea/notes requested
+   - Fix: remove or simplify
+
+## Rules:
+- Fix issues by editing files directly (TASKS.md, CONTEXT.md, specs/)
+- Do NOT add features or expand scope
+- Do NOT add setup/installation tasks — the PLAN phase explores the codebase and handles setup discovery
+- Do NOT rewrite tasks that are already clear and correct
+- Do NOT restructure or reorder tasks that have no dependency issues
+- If nothing needs fixing, do not edit any files
+VALIDATE_EOF
 
 # --- Prompt Builder Functions ---
 
@@ -1398,6 +1459,12 @@ $CLAUDE_MD
 
 $INIT_PROMPT" "INIT"
 
+    echo -e "${CYAN}Validating planning artifacts...${NC}"
+    run_claude "# ORIGINAL IDEA:
+$IDEA_CONTENT
+---
+$VALIDATE_PROMPT" "VALIDATE"
+
     # Verify files were created
     if [[ -f "$CONTEXT_FILE" ]] && [[ -f "$TASK_FILE" ]]; then
         echo -e "${GREEN}Project initialized!${NC}"
@@ -1582,6 +1649,12 @@ $CLAUDE_MD
 ---
 
 $REFRESH_PROMPT" "REFRESH"
+
+    echo -e "${CYAN}Validating planning artifacts...${NC}"
+    run_claude "# ORIGINAL NOTES:
+$NOTES_CONTENT
+---
+$VALIDATE_PROMPT" "VALIDATE"
 
     # Show result
     NEW_TASKS=$(grep -c '^\s*- \[ \]' "$TASK_FILE" 2>/dev/null || echo "0")
