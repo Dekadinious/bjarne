@@ -1200,6 +1200,8 @@ $(get_verbose_output_rules)"
         if [[ $exit_code -eq 0 ]]; then
             # Output the result (so it still shows on screen)
             echo "$output"
+            # Save phase output for cross-phase visibility
+            echo "$output" > "$BJARNE_TMP_DIR/${phase}_output.txt"
             log "INFO" "$phase phase completed successfully"
             return 0
         fi
@@ -2382,6 +2384,27 @@ echo -e "${CYAN}Loop: PLAN → EXECUTE → REVIEW → FIX${NC}"
 echo -e "${CYAN}Logs: $LOG_FILE${NC}"
 echo ""
 
+# Stale loop detection
+STALE_COUNT=0
+EMPTY_PLAN_COUNT=0
+PREV_TASK_HASH=""
+STALE_THRESHOLD=3
+
+# Read previous phase output (for feed-forward to PLAN)
+get_prev_iteration_output() {
+    local result=""
+    for phase in PLAN EXECUTE REVIEW FIX; do
+        local file="$BJARNE_TMP_DIR/${phase}_output.txt"
+        if [[ -f "$file" ]]; then
+            result+="### ${phase} phase said:
+$(cat "$file")
+
+"
+        fi
+    done
+    echo "$result"
+}
+
 for i in $(seq 1 $MAX_ITERATIONS); do
     # Load context fresh each iteration
     load_context
@@ -2394,6 +2417,7 @@ for i in $(seq 1 $MAX_ITERATIONS); do
     fi
 
     REMAINING=$(grep -c '^\s*- \[ \]' "$TASK_FILE" || echo "0")
+    CURRENT_TASK_HASH=$(grep '^\s*- \[ \]' "$TASK_FILE" | md5sum | cut -d' ' -f1)
     echo -e "${YELLOW}=== Iteration $i/$MAX_ITERATIONS ($REMAINING tasks remaining) ===${NC}"
 
     # Select prompts based on batch mode
@@ -2409,9 +2433,21 @@ for i in $(seq 1 $MAX_ITERATIONS); do
         ACTIVE_FIX_PROMPT=$(get_fix_prompt "single")
     fi
 
+    # Build previous iteration feedback for PLAN phase
+    ITERATION_FEEDBACK=""
+    PREV_OUTPUT=$(get_prev_iteration_output)
+    if [[ -n "$PREV_OUTPUT" ]]; then
+        ITERATION_FEEDBACK="## Previous Iteration Output
+What each phase said last iteration. If REVIEW flagged issues that FIX did not address, incorporate them into this iteration's plan.
+
+$PREV_OUTPUT"
+    fi
+
     # PLAN
     echo -e "${BLUE}[1/4 PLAN]${NC} Analyzing..."
     if ! run_claude "$CONTEXT
+
+$ITERATION_FEEDBACK
 
 $ACTIVE_PLAN_PROMPT" "PLAN"; then
         echo -e "${RED}Plan phase failed after $MAX_RETRIES retries - aborting${NC}"
@@ -2420,8 +2456,19 @@ $ACTIVE_PLAN_PROMPT" "PLAN"; then
 
     if [[ ! -f "$TASK_STATE" ]]; then
         echo -e "${RED}Plan failed - no .task file${NC}"
+        ((EMPTY_PLAN_COUNT++))
+        if [[ $EMPTY_PLAN_COUNT -ge $STALE_THRESHOLD ]]; then
+            REMAINING_TASKS=$(grep '^\s*- \[ \]' "$TASK_FILE")
+            log "WARN" "=== STALE LOOP DETECTED (no .task produced $EMPTY_PLAN_COUNT times) ==="
+            log "WARN" "Remaining tasks: $REMAINING_TASKS"
+            echo -e "${RED}=== STALE LOOP: $EMPTY_PLAN_COUNT consecutive plans produced no .task file ===${NC}"
+            echo -e "${RED}Remaining tasks likely need manual intervention:${NC}"
+            echo "$REMAINING_TASKS"
+            exit 2
+        fi
         continue
     fi
+    EMPTY_PLAN_COUNT=0
 
     # EXECUTE
     echo -e "${BLUE}[2/4 EXECUTE]${NC} Implementing..."
@@ -2448,6 +2495,24 @@ $ACTIVE_REVIEW_PROMPT" "REVIEW"; then
 $ACTIVE_FIX_PROMPT" "FIX"; then
         echo -e "${RED}Fix phase failed after $MAX_RETRIES retries - aborting${NC}"
         exit 1
+    fi
+
+    # Stale loop detection: did tasks change this iteration?
+    NEW_TASK_HASH=$(grep '^\s*- \[ \]' "$TASK_FILE" | md5sum | cut -d' ' -f1)
+    if [[ "$NEW_TASK_HASH" == "$CURRENT_TASK_HASH" ]]; then
+        ((STALE_COUNT++))
+        echo -e "${YELLOW}  No tasks changed this iteration (stale: $STALE_COUNT/$STALE_THRESHOLD)${NC}"
+        if [[ $STALE_COUNT -ge $STALE_THRESHOLD ]]; then
+            REMAINING_TASKS=$(grep '^\s*- \[ \]' "$TASK_FILE")
+            log "WARN" "=== STALE LOOP DETECTED (tasks unchanged for $STALE_COUNT iterations) ==="
+            log "WARN" "Remaining tasks: $REMAINING_TASKS"
+            echo -e "${RED}=== STALE LOOP: Tasks unchanged for $STALE_COUNT iterations ===${NC}"
+            echo -e "${RED}Remaining tasks likely need manual intervention:${NC}"
+            echo "$REMAINING_TASKS"
+            exit 2
+        fi
+    else
+        STALE_COUNT=0
     fi
 
     sleep 2
